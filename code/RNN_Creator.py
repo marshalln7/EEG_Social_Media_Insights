@@ -59,6 +59,9 @@ def make_me_a_classifying_RNN_please(filepath: str, label_col: str | int, split:
   ## Convert and split data into explanatory and response (X and y) variables
   columns = list(data.columns)
 
+  ## Assuming that the first column is a time-representing variable
+  columns.pop(0)
+
   if type(label_col) == str:
     columns.remove(label_col)
     
