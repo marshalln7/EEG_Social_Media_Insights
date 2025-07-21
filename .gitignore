@@ -1,5 +1,6 @@
 .DS_Store
 .vscode
 raw datasets/EmoKey Short
+raw datasets/Mendeley
 cleaned datasets/Emotion cleaned
 cleaned datasets/Mendeley cleaned
