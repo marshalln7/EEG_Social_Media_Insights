@@ -1,8 +1,10 @@
-def make_me_a_classifying_RNN_please(filepath: str, label_col: str | int, split: float = 0.2, optimizer_type: str = 'Adam', learning_rate: float = 0.001, epochs: int = 5000, export: bool = True, visualize: bool = True) -> None:
+def make_me_a_classifying_RNN_please(filepath: str, label_col: str | int, split: float = 0.2, 
+                                     optimizer_type: str = 'Adam', learning_rate: float = 0.001, epochs: int = 5000, 
+                                     export: bool = True, visualize: bool = True) -> None:
   """
   Inputs a data file to create a classifying recurrent neural network (RNN) on, and returns the training data + exported model in the form of a .pth file
 
-  For now, returns a RNN with the model specifications tailored to any "feature_extracted" datasets (988 explanatory variables), and contains 1 hidden layer with 988 nodes
+  For now, returns a RNN with the model specifications tailored to any .csv dataset input, adjusting the number of inputs and outputs accordingly
   ** More customizability to follow, hopefully **
 
   - filepath: A string containing the file path to the training dataset (ideally a .csv file)
@@ -47,7 +49,7 @@ def make_me_a_classifying_RNN_please(filepath: str, label_col: str | int, split:
   from torch.autograd import Variable
   from torch.utils.data import DataLoader, TensorDataset
 
-  import matplotlib.pyplot as plt
+  import os
   import numpy as np
   import pandas as pd
   from sklearn.model_selection import train_test_split
@@ -66,10 +68,12 @@ def make_me_a_classifying_RNN_please(filepath: str, label_col: str | int, split:
     columns.remove(label_col)
     
   elif type(label_col) == int:
+    label_col_name = columns[label_col]
     columns.pop(label_col)
 
   X = np.array(data[columns])
-  y = np.array(data[label_col])
+  y = np.array(data[label_col_name])
+  classifications = set(y)
 
   ## Convert data into PyTorch-friendly tensors
   X = torch.from_numpy(X).type(torch.float)
@@ -110,11 +114,15 @@ def make_me_a_classifying_RNN_please(filepath: str, label_col: str | int, split:
       return out
 
   # Setting parameters and methods to begin training ------------------------------------------------------
-  ## Creating model parameters (SOON TO BE CUSTOMIZEABLE, HOPEFULLY)
-  input_size = 988
-  hidden_size = 988
+
+  ## Input is the number of variables in the provided dataset
+  ## Hidden layer input is 1:1 with the overall input
+  ## Only one hidden layer needed, for now
+  ## Output is the number of unique classes in the dataset
+  input_size = X_train.shape[1]
+  hidden_size = X_train.shape[1]
   layer_size = 1
-  output_size = 3
+  output_size = len(classifications)
 
   ## Define model with above parameters
   model = TestRNN(input_size, hidden_size, layer_size, output_size)
@@ -216,3 +224,58 @@ def make_me_a_classifying_RNN_please(filepath: str, label_col: str | int, split:
     plt.title("RNN: Accuracy vs Number of iteration")
     plt.show()
 
+def normalice(input: torch.Tensor, proportion: bool = False) -> list:
+  """
+  A function that takes in the 2-D torch.Tensor output of a RNN and returns a normalized output, passed through a sigmoid function
+  Proportional: bool (Default = False) - Returns the proportional likelihood; all values in a list sum to 1
+
+  The list of values for each row is representative of the "likeliness" of an observation being classified in each of the corresponding indices of the row
+  - Normalized: We center and scale these values around 0 so that they follow a normal distribution
+    - value / sum of all values in row
+  - Sigmoid: By applying the sigmoid function, we are able to convert all of the normalized values into numbers between 0 and 1; a probability
+  """
+
+  ## Define sigmoid function
+  def sigmoid(input):
+    return 1 / (1 + np.e**(-input))
+
+  ## If `proportional` is not requested, then all values in a list represent probability of Y/N for each class represented
+  if proportion == False:
+    final_output = []
+    for row in input:
+      output = []
+      for value in row:
+        output.append(sigmoid(float(value) / float(sum(list(row)))))
+      final_output.append(output)
+
+  ## Otherwise, all values represent the proportional probability of a class being the one and only classification
+  else:
+    final_output = []
+    for row in input:
+
+      output = []
+      for value in row:
+        output.append(sigmoid(float(value) / float(sum(list(row)))))
+
+      new_output = []
+      for value in output:
+        new_output.append(value / sum(output))
+
+      final_output.append(new_output)
+
+  return final_output
+
+def classify(input: list) -> list:
+  """
+  Inputs a normalized list of values, and returns the most "likely" classification depending on the index of the largest value/probability
+
+  Shrimple as that
+  """
+
+  output = []
+
+  # Returns the index of the maximum values in each list, therefore the "best" class
+  for row in input:
+    output.append(row.index(max(row)))
+
+  return output
