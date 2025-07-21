@@ -1,0 +1,21 @@
+{
+  "Name": "NeuroSense: A Novel EEG Dataset Utilizing Low-Cost, Sparse Electrode Devices for Emotion Exploration",
+  "BIDSVersion": "1.8.0",
+  "DatasetType": "raw",
+  "License": "Data Use Agreement",
+  "Authors": [
+    "Tommaso Colafiglio",
+    "Angela Lombardi",
+    "Paolo Sorino",
+    "Elvira Brattico",
+    "Domenico Lofù",
+    "Danilo Danese",
+    "Eugenio Di Sciascio",
+    "Tommaso Di Noia",
+    "Fedelucio Narducci"
+  ],
+  "Acknowledgements":	"This work was partially supported by the following projects: \"SECURE SAFE APULIA\", \"LIFE: the itaLian system wIde Frailty nEtwork\", PNRR-MAD-2022-12376656, \"CTEMT - Casa delle Tecnologie Emergenti di Matera\", \"IDENTITA - rete Integrata meDiterranea per l'osservazione ed Elaborazione di percorsi di Nutrizione\", and \"OncologIA\". Additionally, Tommaso Colafiglio is enrolled in the Italian National Doctorate on Artificial Intelligence at Sapienza University of Rome in collaboration with Politecnico di Bari.",
+  "HowToAcknowledge": "",
+  "EthicsApprovals": ["Local committee of University of Bari"],
+  "DatasetDOI": "doi: 10.1109/ACCESS.2024.0429000"
+}

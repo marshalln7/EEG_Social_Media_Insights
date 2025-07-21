@@ -1,0 +1,122 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: Proposed Agreement
+type: dataset
+authors:
+  - given-names: Tommaso
+    family-names: Colafiglio
+    email: tommaso.colafiglio@poliba.it
+    affiliation: Department of Computer, Control, and Management Engineering (DIAG), Sapienza University of Rome / Department of Electrical and Information Engineering, Politecnico di Bari.
+    orcid: 'https://orcid.org/0000-0001-7184-310X'
+  - given-names: Angela
+    family-names: Lombardi
+    email: angela.lombardi@poliba.it
+    affiliation: Department of Electrical and Information Engineering, Politecnico di Bari.
+    orcid: 'https://orcid.org/0000-0003-1815-9522'
+  - given-names: Paolo
+    family-names: Sorino
+    email: paolo.sorino@poliba.it
+    affiliation: Department of Electrical and Information Engineering, Politecnico di Bari.
+    orcid: 'https://orcid.org/0000-0002-9081-2648'
+  - given-names: Elvira
+    family-names: Brattico
+    email: elvira.brattico@clin.au.dk
+    affiliation: Center for Music in the Brain, Department of Clinical Medicine, Aarhus University / Department of Education, Psychology, Communication, Università degli Studi di Bari.
+    orcid: 'https://orcid.org/0000-0003-0676-6464'
+  - given-names: Domenico
+    family-names: Lofù
+    email: domenico.lofu@poliba.it
+    affiliation: Department of Electrical and Information Engineering, Politecnico di Bari.
+    orcid: 'https://orcid.org/0000-0001-6413-9886'
+   - given-names: Danilo
+    family-names: Danese
+    email: danilo.danese@poliba.it
+    affiliation: Department of Electrical and Information Engineering, Politecnico di Bari.
+    orcid: 'https://orcid.org/0009-0000-5203-1229'
+   - given-names: Eugenio
+    family-names: Di Sciascio
+    email: eugenio.disciascio@poliba.it
+    affiliation: Department of Electrical and Information Engineering, Politecnico di Bari.
+    orcid: 'https://orcid.org/0000-0002-5484-9945'
+   - given-names: Tommaso
+    family-names: Di Noia
+    email: tommaso.dinoia@poliba.it
+    affiliation: Department of Electrical and Information Engineering, Politecnico di Bari.
+    orcid: 'https://orcid.org/0000-0002-0939-5462'
+   - given-names: Fedelucio
+    family-names: Narducci
+    email: fedelucio.narducci@poliba.it
+    affiliation: Department of Electrical and Information Engineering, Politecnico di Bari.
+    orcid: 'https://orcid.org/0000-0002-9255-3256'
+    
+ 
+identifiers:
+  - type: doi
+    value: 10.1109/ACCESS.2024.3487932
+url: 'https://sisinflab.poliba.it/neurosense-dataset-request/'
+abstract: >-
+  Emotion recognition is crucial in affective computing,
+  aiming to bridge the gap between
+
+  human emotional states and computer understanding. This
+  study presents NeuroSense, a novel electroen-
+
+  cephalography (EEG) dataset utilizing low-cost, sparse
+  electrode devices for emotion exploration. Our
+
+  dataset comprises EEG signals collected with the portable
+  4-electrodes device Muse 2 from 30 participants
+
+  who, thanks to a neurofeedback setting, watch 40 music
+  videos and assess their emotional responses. These
+
+  assessments use standardized scales gauging arousal,
+  valence, and dominance. Additionally, participants
+
+  rate their liking for and familiarity with the videos. We
+  develop a comprehensive preprocessing pipeline and
+
+  employ machine learning algorithms to translate EEG data
+  into meaningful insights about emotional states.
+
+  We verify the performance of machine learning (ML) models
+  using the NeuroSense dataset. Despite utilizing
+
+  just 4 electrodes, our models achieve an average accuracy
+  ranging from 75% to 80% across the four quadrants
+
+  of the dimensional model of emotions. We perform
+  statistical analyses to assess the reliability of the
+  self-
+
+  reported labels and the classification performance for
+  each participant, identifying potential discrepancies
+
+  and their implications. We also compare our results with
+  those obtained using other public EEG datasets,
+
+  highlighting the advantages and limitations of sparse
+  electrode setups in emotion recognition. Our results
+
+  demonstrate the potential of low-cost EEG devices in
+  emotion recognition, highlighting the effectiveness of
+
+  ML models in capturing the dynamic nature of emotions. The
+  NeuroSense dataset is publicly available,
+
+  inviting further research and application in
+  human-computer interaction, mental health monitoring, and
+
+  beyond.
+keywords:
+  - Emotion Recognition
+  - EEG Dataset
+  - Low-Cost EEG Devices
+  - Machine Learning
+  - Human- Computer Interaction
+  - Russell’s Model
+license: Data Use Agreement
+version: '1.0'
+date-released: '2024-10-28'
