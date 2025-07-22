@@ -218,7 +218,7 @@ def make_me_a_classifying_RNN_please(filepath: str, label_col: str | int, drop_l
       model_name = f'{dataset_name}_RNN_model_{today}.pth'
     
     if '.pth' not in model_name:
-      torch.save(model, os.path.join("models", model_name, '.pth'))
+      torch.save(model, os.path.join("models", model_name + '.pth'))
     else:
       torch.save(model, os.path.join("models", model_name))
 

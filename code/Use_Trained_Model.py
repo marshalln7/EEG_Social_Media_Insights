@@ -26,12 +26,18 @@ def load_all_models():
     all_model_files = sorted(all_model_files)
     
     # Separate regression and classification models based on filename patterns
+    # Only include concentration and mendeley models
     reg_models = []
     clf_models = []
     other_models = []
     
     for model_path in all_model_files:
         filename = os.path.basename(model_path).lower()
+        
+        # Only process concentration and mendeley models
+        if not ('concentration' in filename or 'mendeley' in filename):
+            continue
+            
         if 'reg' in filename or 'regression' in filename:
             reg_models.append(model_path)
         elif 'clf' in filename or 'classification' in filename or 'classifier' in filename:
