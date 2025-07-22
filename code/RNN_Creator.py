@@ -1,3 +1,17 @@
+
+# Importing necessary packages ---------------------------------------------------------------------------------------
+import torch
+from torch import nn
+from torch.autograd import Variable
+from torch.utils.data import DataLoader, TensorDataset
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+
+import os
+
 def make_me_a_classifying_RNN_please(filepath: str, label_col: str | int, drop_list: list = [], 
                                      n_rows: int = 0, split: float = 0.2, 
                                      optimizer_type: str = 'Adam', learning_rate: float = 0.001, epochs: int = 5000, 
@@ -54,17 +68,6 @@ def make_me_a_classifying_RNN_please(filepath: str, label_col: str | int, drop_l
   if type(visualize) != bool:
     return print("visualize is not a valid input, make sure it is a boolean value")
 
-  # Importing necessary packages ---------------------------------------------------------------------------------------
-  import torch
-  from torch import nn
-  from torch.autograd import Variable
-  from torch.utils.data import DataLoader, TensorDataset
-
-  import numpy as np
-  import pandas as pd
-  import matplotlib.pyplot as plt
-  from sklearn.model_selection import train_test_split
-
   # Preparing data for training ----------------------------------------------------------------------------------------
   ## Import data as pandas dataframe, np.array does not translate well
   print("Loading data and preparing for training...")
@@ -114,27 +117,7 @@ def make_me_a_classifying_RNN_please(filepath: str, label_col: str | int, drop_l
   train_loader = DataLoader(train, batch_size = batch_size, shuffle = True)
   test_loader = DataLoader(test, batch_size = batch_size, shuffle = True)
 
-  # Constructing the RNN ----------------------------------------------------------------------------------
-  class TestRNN(nn.Module):
-
-    ## Create architecture of RNN (input size, hidden size, hidden layer count, output size)
-    def __init__(self, input_size, hidden_size, layer_size, output_size):
-      super(TestRNN, self).__init__()
-
-      self.hidden_size = hidden_size
-      self.layer_size = layer_size
-
-      ## RNN model via Torch, hidden layers
-      self.rnn = nn.RNN(input_size, hidden_size, layer_size, batch_first = True, nonlinearity = 'relu')
-      ## Hidden layer values -> output layer
-      self.fc = nn.Linear(hidden_size, output_size)
-
-    ## Define how the RNN moves forward (The math behind the process)
-    def forward(self, x):
-      h0 = Variable(torch.zeros(self.layer_size, x.size(0), self.hidden_size))
-      out, hn = self.rnn(x, h0)
-      out = self.fc(out[:, -1, :])
-      return out
+  
 
   # Setting parameters and methods to begin training ------------------------------------------------------
   print("Setting model specifications...")
@@ -232,9 +215,9 @@ def make_me_a_classifying_RNN_please(filepath: str, label_col: str | int, drop_l
       model_name = 'my_model.pth'
     
     if '.pth' not in model_name:
-      torch.save(model, model_name + '.pth')
+      torch.save(model, os.path.join("models", model_name, '.pth'))
     else:
-      torch.save(model, model_name)
+      torch.save(model, os.path.join("models", model_name))
 
   ## If visualizations are requested
   if visualize:
@@ -310,3 +293,25 @@ def classify(input: list) -> list:
     output.append(row.index(max(row)))
 
   return output
+
+# Constructing the RNN ----------------------------------------------------------------------------------
+class TestRNN(nn.Module):
+
+  ## Create architecture of RNN (input size, hidden size, hidden layer count, output size)
+  def __init__(self, input_size, hidden_size, layer_size, output_size):
+    super(TestRNN, self).__init__()
+
+    self.hidden_size = hidden_size
+    self.layer_size = layer_size
+
+    ## RNN model via Torch, hidden layers
+    self.rnn = nn.RNN(input_size, hidden_size, layer_size, batch_first = True, nonlinearity = 'relu')
+    ## Hidden layer values -> output layer
+    self.fc = nn.Linear(hidden_size, output_size)
+
+  ## Define how the RNN moves forward (The math behind the process)
+  def forward(self, x):
+    h0 = Variable(torch.zeros(self.layer_size, x.size(0), self.hidden_size))
+    out, hn = self.rnn(x, h0)
+    out = self.fc(out[:, -1, :])
+    return out
