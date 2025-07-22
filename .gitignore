@@ -5,3 +5,5 @@ raw datasets/Mendeley
 cleaned datasets/Emotion cleaned
 cleaned datasets/Mendeley cleaned
 featuresets/
+!featuresets/Mendeley cleaned_2025-07-22_17-04.csv
+!featuresets/original_data_2025-07-22_17-07.csv
