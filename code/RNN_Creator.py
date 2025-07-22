@@ -67,6 +67,7 @@ def make_me_a_classifying_RNN_please(filepath: str, label_col: str | int, drop_l
 
   # Preparing data for training ----------------------------------------------------------------------------------------
   ## Import data as pandas dataframe, np.array does not translate well
+  print("Loading data and preparing for training...")
   data = pd.read_csv(filepath)
 
   ## Collect specified number of rows from the dataset, **assuming data is shuffled**
@@ -87,6 +88,7 @@ def make_me_a_classifying_RNN_please(filepath: str, label_col: str | int, drop_l
   ## Remove the label column from the final list of needed columns
   if type(label_col) == str:
     columns.remove(label_col)
+    label_col_name = label_col
     
   elif type(label_col) == int:
     label_col_name = columns[label_col]
@@ -135,7 +137,7 @@ def make_me_a_classifying_RNN_please(filepath: str, label_col: str | int, drop_l
       return out
 
   # Setting parameters and methods to begin training ------------------------------------------------------
-
+  print("Setting model specifications...")
   ## Input is the number of variables in the provided dataset
   ## Hidden layer input is 1:1 with the overall input
   ## Only one hidden layer needed, for now
@@ -164,12 +166,13 @@ def make_me_a_classifying_RNN_please(filepath: str, label_col: str | int, drop_l
   accuracy_list = []
   count = 0
 
+  print("Beginning model training...")
   ## Begin training loop for `epochs` epochs
   for epoch in range(epochs):
       for i, (explanatory, labels) in enumerate(train_loader):
 
           train  = Variable(explanatory.view(batch_size, 1, input_size))
-          labels = Variable(labels.view(-1))
+          labels = Variable(labels.view(-1)) - 1
               
           ## Clear gradients
           optimizer.zero_grad()
@@ -220,9 +223,10 @@ def make_me_a_classifying_RNN_please(filepath: str, label_col: str | int, drop_l
 
   # Finalizing and delivering outputs if desired ---------------------------------------------------------------------
   ## If an outputted model is requested, request model name
+  print("Model complete!")
   if export:
 
-    model_name = input("Model complete! Enter a name for your .pth model file: ")
+    model_name = input("Enter a name for your .pth model file: ")
     if '.pth' not in model_name:
       torch.save(model, model_name + '.pth')
     else:
