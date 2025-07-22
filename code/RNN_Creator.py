@@ -223,6 +223,10 @@ def make_me_a_classifying_RNN_please(filepath: str, label_col: str | int, drop_l
   if export:
 
     model_name = input("Model complete! Enter a name for your .pth model file: ")
+
+    if model_name == '':
+      model_name = 'my_model.pth"
+    
     if '.pth' not in model_name:
       torch.save(model, model_name + '.pth')
     else:
