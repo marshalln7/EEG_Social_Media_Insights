@@ -172,7 +172,7 @@ def make_me_a_classifying_RNN_please(filepath: str, label_col: str | int, drop_l
       for i, (explanatory, labels) in enumerate(train_loader):
 
           train  = Variable(explanatory.view(batch_size, 1, input_size))
-          labels = Variable(labels.view(-1)) - 1
+          labels = Variable(labels.view(-1))
               
           ## Clear gradients
           optimizer.zero_grad()
