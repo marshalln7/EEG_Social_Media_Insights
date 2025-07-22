@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 
 import os
+from datetime import datetime
 
 def make_me_a_classifying_RNN_please(filepath: str, label_col: str | int, drop_list: list = [], 
                                      n_rows: int = 0, split: float = 0.2, 
@@ -209,10 +210,12 @@ def make_me_a_classifying_RNN_please(filepath: str, label_col: str | int, drop_l
   print("Model complete!")
   if export:
 
-    model_name = input("Model complete! Enter a name for your .pth model file: ")
+    model_name = input("Model complete! Option to enter a name outside of the naming convention: ")
 
     if model_name == '':
-      model_name = 'my_model.pth'
+      dataset_name = filepath.split("_")[0]
+      today = datetime.now().date()
+      model_name = f'{dataset_name}_RNN_model_{today}.pth'
     
     if '.pth' not in model_name:
       torch.save(model, os.path.join("models", model_name, '.pth'))
