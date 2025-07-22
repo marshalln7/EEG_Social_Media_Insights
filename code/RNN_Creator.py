@@ -1,4 +1,4 @@
-def make_me_a_classifying_RNN_please(filepath: str, label_col: str | int, split: float = 0.2, 
+def make_me_a_classifying_RNN_please(filepath: str, label_col: str | int, drop_list: list = [], split: float = 0.2, 
                                      optimizer_type: str = 'Adam', learning_rate: float = 0.001, epochs: int = 5000, 
                                      export: bool = True, visualize: bool = True) -> None:
   """
@@ -9,6 +9,7 @@ def make_me_a_classifying_RNN_please(filepath: str, label_col: str | int, split:
 
   - filepath: A string containing the file path to the training dataset (ideally a .csv file)
   - label_col: A string or integer that contains either the name or the index of the column containing the labels of the data
+  - drop_list: A list containing the names of the columns to drop from the dataset, used to manually get rid of unnecessary columns
   - split: A float specifying the train/test split ratio, referencing the proportion of testing data (default = 0.2)
   - learning_rate: A float representing the learning coefficient for the training of the RNN (default = 0.001)
   - optimizer_type: A string, either "Adam" or "SGD", denoting which optimization function to use, **be literal** (default = "Adam")
@@ -24,6 +25,9 @@ def make_me_a_classifying_RNN_please(filepath: str, label_col: str | int, split:
   
   if type(label_col) != str and type(label_col) != int:
     return print("label_col not a valid input, make sure it is either a string or an index")
+    
+  if type(drop_list) != list:
+      return print("drop_list not a valid input, make sure it is a list containing valid columns")
 
   if not(type(split) == float and split > 0 and split < 1):
     return print("split is not a valid input, make sure it is a float between 0 and 1")
@@ -61,8 +65,16 @@ def make_me_a_classifying_RNN_please(filepath: str, label_col: str | int, split:
   ## Convert and split data into explanatory and response (X and y) variables
   columns = list(data.columns)
 
-  ## Assuming that the first column is a time-representing variable
-  columns.pop(0)
+  ## Check to see if specified drop columns are valid; drop columns
+  if len(drop_list) != 0:
+    for col in drop_list:
+      if col not in columns:
+        return print("Specified column(s) to drop are missing, make sure all columns inputted are valid")
+      
+    data.drop(drop_list, axis = 1)
+
+      
+  ## Remove specified columns from the dataset
 
   if type(label_col) == str:
     columns.remove(label_col)
