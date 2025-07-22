@@ -49,9 +49,9 @@ def make_me_a_classifying_RNN_please(filepath: str, label_col: str | int, split:
   from torch.autograd import Variable
   from torch.utils.data import DataLoader, TensorDataset
 
-  import os
   import numpy as np
   import pandas as pd
+  import matplotlib.pyplot as plt
   from sklearn.model_selection import train_test_split
 
   # Preparing data for training ----------------------------------------------------------------------------------------
@@ -224,7 +224,7 @@ def make_me_a_classifying_RNN_please(filepath: str, label_col: str | int, split:
     plt.title("RNN: Accuracy vs Number of iteration")
     plt.show()
 
-def normalice(input: torch.Tensor, proportion: bool = False) -> list:
+def normalice(input, proportion: bool = False) -> list:
   """
   A function that takes in the 2-D torch.Tensor output of a RNN and returns a normalized output, passed through a sigmoid function
   Proportional: bool (Default = False) - Returns the proportional likelihood; all values in a list sum to 1
@@ -234,6 +234,8 @@ def normalice(input: torch.Tensor, proportion: bool = False) -> list:
     - value / sum of all values in row
   - Sigmoid: By applying the sigmoid function, we are able to convert all of the normalized values into numbers between 0 and 1; a probability
   """
+
+  import numpy as np
 
   ## Define sigmoid function
   def sigmoid(input):
