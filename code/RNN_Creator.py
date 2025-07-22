@@ -1,21 +1,25 @@
-def make_me_a_classifying_RNN_please(filepath: str, label_col: str | int, drop_list: list = [], split: float = 0.2, 
+def make_me_a_classifying_RNN_please(filepath: str, label_col: str | int, drop_list: list = [], 
+                                     n_rows: int = 0, split: float = 0.2, 
                                      optimizer_type: str = 'Adam', learning_rate: float = 0.001, epochs: int = 5000, 
                                      export: bool = True, visualize: bool = True) -> None:
   """
   Inputs a data file to create a classifying recurrent neural network (RNN) on, and returns the training data + exported model in the form of a .pth file
 
   For now, returns a RNN with the model specifications tailored to any .csv dataset input, adjusting the number of inputs and outputs accordingly
-  ** More customizability to follow, hopefully **
 
   - filepath: A string containing the file path to the training dataset (ideally a .csv file)
   - label_col: A string or integer that contains either the name or the index of the column containing the labels of the data
-  - drop_list: A list containing the names of the columns to drop from the dataset, used to manually get rid of unnecessary columns
+  - drop_list: A list containing the names of the columns to drop from the dataset, used to manually get rid of unnecessary columns (default = [], skip)
+
+  - n_rows: An integer to specify the first n number of rows to sample from the original dataset, assumes that the original dataset is shuffled (default = 0, skip)
   - split: A float specifying the train/test split ratio, referencing the proportion of testing data (default = 0.2)
+
   - learning_rate: A float representing the learning coefficient for the training of the RNN (default = 0.001)
   - optimizer_type: A string, either "Adam" or "SGD", denoting which optimization function to use, **be literal** (default = "Adam")
       - Adam: Adaptive Movement Estimation, utilizes a measure called "momentum" to optimize based on previous entries
       - SGD: Stochastic Gradient Descent, approximates the local minima of a function effectively and efficiently
   - epochs: An integer to determine how many epochs, or generations, the RNN will train for; must be at least 100 (default = 5000)
+
   - export: A boolean value deciding whether or not a .pth copy of the model is downloaded, prompts model naming from user (default = True)
   - visualize: A boolean value to determine if a visualization of the loss/accuracy over the epochs is desired (default = True)
   """
@@ -27,7 +31,10 @@ def make_me_a_classifying_RNN_please(filepath: str, label_col: str | int, drop_l
     return print("label_col not a valid input, make sure it is either a string or an index")
     
   if type(drop_list) != list:
-      return print("drop_list not a valid input, make sure it is a list containing valid columns")
+    return print("drop_list not a valid input, make sure it is a list containing valid columns")
+  
+  if type(n_rows) != int:
+    return print("n_rows is not a valid input, make sure it is a positive integer value")
 
   if not(type(split) == float and split > 0 and split < 1):
     return print("split is not a valid input, make sure it is a float between 0 and 1")
@@ -62,6 +69,10 @@ def make_me_a_classifying_RNN_please(filepath: str, label_col: str | int, drop_l
   ## Import data as pandas dataframe, np.array does not translate well
   data = pd.read_csv(filepath)
 
+  ## Collect specified number of rows from the dataset, **assuming data is shuffled**
+  if n_rows > 0:
+    data = data.iloc[:n_rows, :]
+
   ## Convert and split data into explanatory and response (X and y) variables
   columns = list(data.columns)
 
@@ -72,10 +83,8 @@ def make_me_a_classifying_RNN_please(filepath: str, label_col: str | int, drop_l
         return print("Specified column(s) to drop are missing, make sure all columns inputted are valid")
       
     data.drop(drop_list, axis = 1)
-
       
-  ## Remove specified columns from the dataset
-
+  ## Remove the label column from the final list of needed columns
   if type(label_col) == str:
     columns.remove(label_col)
     
