@@ -134,3 +134,5 @@ def muse_clean(filepath: str, filename: str, subject_id: str, record_id: str, ne
 
     ## Download dataset into the newly created folder (default name set to "cleaned datasets")
     df.to_csv(f"../cleaned datasets/{new_folder}/subject{subject_id}-label-{record_id}-cleaned.csv")
+
+    ## Hope this works :)
