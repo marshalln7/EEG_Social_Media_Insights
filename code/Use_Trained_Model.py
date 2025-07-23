@@ -63,7 +63,7 @@ class EEGModelPredictor:
         
     def load_models(self, model_filter=None):
         """
-        Load models from the models directory
+        Load models from the models directory - selecting only the latest model for each type
         
         Args:
             model_filter (list): Additional filter for model types (optional)
@@ -79,9 +79,6 @@ class EEGModelPredictor:
         if not all_model_files:
             raise FileNotFoundError(f"No .pkl model files found in the {self.models_dir} directory")
         
-        # Sort models by filename (which may include timestamp)
-        all_model_files = sorted(all_model_files)
-        
         # Reset internal state
         self.reg_models = []
         self.clf_models = []
@@ -90,20 +87,56 @@ class EEGModelPredictor:
         self.clf_model_names = []
         self.other_model_names = []
         
-        # Separate models based on filename patterns
+        # Dictionary to store latest models by category and type
+        latest_models = {
+            'reg': {},
+            'clf': {},
+            'other': {}
+        }
+        
+        # Separate models based on filename patterns and find latest for each type
         for model_path in all_model_files:
             filename = os.path.basename(model_path).lower()
             
             # Filter by model types
             if not any(model_type in filename for model_type in model_types_to_use):
                 continue
+            
+            # Extract model category (concentration, mendeley, etc.)
+            model_category = None
+            for model_type in model_types_to_use:
+                if model_type in filename:
+                    model_category = model_type
+                    break
+            
+            if not model_category:
+                continue
                 
+            # Get file modification time for comparison
+            mod_time = os.path.getmtime(model_path)
+            
             if 'reg' in filename or 'regression' in filename:
-                self.reg_model_names.append(model_path)
+                category = 'reg'
             elif 'clf' in filename or 'classification' in filename or 'classifier' in filename:
-                self.clf_model_names.append(model_path)
+                category = 'clf'
             else:
-                self.other_model_names.append(model_path)
+                category = 'other'
+            
+            # Keep only the latest model for each category-type combination
+            key = f"{model_category}_{category}"
+            if key not in latest_models[category] or mod_time > latest_models[category][key]['mod_time']:
+                latest_models[category][key] = {
+                    'path': model_path,
+                    'mod_time': mod_time
+                }
+        
+        # Extract the latest model paths
+        for category_models in latest_models['reg'].values():
+            self.reg_model_names.append(category_models['path'])
+        for category_models in latest_models['clf'].values():
+            self.clf_model_names.append(category_models['path'])
+        for category_models in latest_models['other'].values():
+            self.other_model_names.append(category_models['path'])
         
         if self.verbose:
             print(f"Found {len(all_model_files)} total model files:")
@@ -600,37 +633,34 @@ def batch_predict(models_list, data_files_list, output_dir="results", visualize_
 
 def create_simple_visualizations(all_reg_predictions, all_clf_predictions, all_other_predictions, 
                                reg_model_names, clf_model_names, other_model_names, timestep=None):
-    """Create improved visualizations for model predictions with proper scaling and statistical plots"""
+    """Create concentration-focused visualizations - overview and separate regression/classification plots"""
     
     # Set a clean style
     plt.style.use('default')
     if HAS_SEABORN:
         sns.set_palette("husl")
     
-    # 1. Create improved regression visualizations
+    # Create the overview plot
+    if all_reg_predictions or all_clf_predictions:
+        create_concentration_overview_plot(all_reg_predictions, all_clf_predictions, 
+                                         reg_model_names, clf_model_names, timestep)
+    
+    # Create separate regression plot
     if all_reg_predictions:
-        create_improved_regression_plots(all_reg_predictions, reg_model_names, timestep)
+        create_concentration_regression_plot(all_reg_predictions, reg_model_names, timestep)
     
-    # 2. Create improved classification visualizations with boxplots and bar charts
+    # Create separate classification plot
     if all_clf_predictions:
-        create_improved_classification_plots(all_clf_predictions, clf_model_names, timestep)
-    
-    # 3. Overview plot - all models in one view
-    if all_reg_predictions or all_clf_predictions or all_other_predictions:
-        create_overview_plot(all_reg_predictions, all_clf_predictions, all_other_predictions,
-                            reg_model_names, clf_model_names, other_model_names, timestep)
+        create_concentration_classification_plot(all_clf_predictions, clf_model_names, timestep)
 
 def create_improved_regression_plots(all_reg_predictions, reg_model_names, timestep=None):
-    """Create improved regression plots with consistent scaling and better visualization"""
+    """Create improved regression plots with consistent scaling and better visualization for concentration models"""
     
     if not all_reg_predictions:
         return
     
-    # Calculate global min/max for consistent scaling
-    all_reg_values = np.concatenate(all_reg_predictions)
-    global_min, global_max = np.min(all_reg_values), np.max(all_reg_values)
-    y_margin = (global_max - global_min) * 0.05  # Add 5% margin
-    y_lim = (global_min - y_margin, global_max + y_margin)
+    # Set fixed scale for concentration models (0=Relaxed, 1=Neutral, 2=Concentrated)
+    y_lim = (-0.1, 2.1)  # Fixed scale with small margin
     
     # Prepare x-axis with more descriptive labeling
     if timestep is not None and len(timestep) > 0:
@@ -672,17 +702,9 @@ def create_improved_regression_plots(all_reg_predictions, reg_model_names, times
             ax.plot(x_sampled, pred_sampled, linewidth=3, alpha=0.9, 
                    color=colors[i])
             
-            # Create more descriptive, cleaner titles
+            # Create more descriptive, cleaner titles for concentration models
             short_name = os.path.basename(model_name).replace(".pkl", "")
-            # Map model names to more readable descriptions
-            if "concentration" in short_name.lower():
-                model_type = "Attention/Focus"
-            elif "mendeley" in short_name.lower():
-                model_type = "Emotional State"
-            elif "neurosense" in short_name.lower():
-                model_type = "Music Emotion"
-            else:
-                model_type = "EEG Analysis"
+            model_type = "Attention/Focus"
             
             # Truncate very long names and add line breaks if needed
             if len(short_name) > 15:
@@ -693,12 +715,20 @@ def create_improved_regression_plots(all_reg_predictions, reg_model_names, times
             ax.set_title(f'{model_type} Model {i+1}\n{display_name}', fontweight='bold', fontsize=10)
             
             ax.set_xlabel(x_label, fontsize=9)
-            ax.set_ylabel('EEG-Derived Prediction Score', fontsize=9)
-            ax.set_ylim(y_lim)  # Same scale for all plots
+            ax.set_ylabel('Concentration Level', fontsize=9)
+            ax.set_ylim(y_lim)  # Fixed scale for concentration
+            
+            # Set y-axis ticks and labels for concentration levels
+            ax.set_yticks([0, 1, 2])
+            ax.set_yticklabels(['Relaxed (0)', 'Neutral (1)', 'Concentrated (2)'], fontsize=8)
+            
             ax.grid(True, alpha=0.4, linestyle='--')
             ax.set_facecolor('#f8f9fa')
             
-            # Remove statistics text to clean up the plot
+            # Add horizontal reference lines for concentration levels
+            ax.axhline(y=0, color='green', linestyle='--', alpha=0.5, linewidth=1)
+            ax.axhline(y=1, color='orange', linestyle='--', alpha=0.5, linewidth=1) 
+            ax.axhline(y=2, color='red', linestyle='--', alpha=0.5, linewidth=1)
         
         # Bottom: Boxplot comparison
         ax_box = fig.add_subplot(gs[1, :])
@@ -710,18 +740,28 @@ def create_improved_regression_plots(all_reg_predictions, reg_model_names, times
                            showmeans=True, meanline=True)
         
         # Use more distinct colors for better differentiation
-        distinct_colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F']
         colors = distinct_colors[:n_models] if n_models <= len(distinct_colors) else plt.cm.tab10(np.linspace(0, 1, n_models))
         for patch, color in zip(bp['boxes'], colors):
             patch.set_facecolor(color)
             patch.set_alpha(0.8)
         
-        ax_box.set_title('EEG Regression Models - Statistical Distribution Analysis', fontweight='bold', fontsize=12)
-        ax_box.set_ylabel('EEG-Derived Prediction Score', fontsize=10)
+        ax_box.set_title('EEG Concentration Models - Statistical Distribution Analysis', fontweight='bold', fontsize=12)
+        ax_box.set_ylabel('Concentration Level', fontsize=10)
+        ax_box.set_ylim(y_lim)  # Fixed scale for concentration
+        
+        # Set y-axis ticks and labels for concentration levels
+        ax_box.set_yticks([0, 1, 2])
+        ax_box.set_yticklabels(['Relaxed (0)', 'Neutral (1)', 'Concentrated (2)'], fontsize=9)
+        
         ax_box.tick_params(axis='x', labelsize=9)
         ax_box.grid(True, alpha=0.3)
         
-        plt.suptitle(f'EEG-Based Regression Models Analysis - {n_models} Models (Muse Headset Data)', 
+        # Add horizontal reference lines
+        ax_box.axhline(y=0, color='green', linestyle='--', alpha=0.5, linewidth=1)
+        ax_box.axhline(y=1, color='orange', linestyle='--', alpha=0.5, linewidth=1)
+        ax_box.axhline(y=2, color='red', linestyle='--', alpha=0.5, linewidth=1)
+        
+        plt.suptitle(f'EEG-Based Concentration Models Analysis - {n_models} Models (Muse Headset Data)', 
                     fontsize=18, fontweight='bold', y=0.95)
     
     # Better layout adjustment
@@ -729,7 +769,7 @@ def create_improved_regression_plots(all_reg_predictions, reg_model_names, times
     plt.show()
 
 def create_improved_classification_plots(all_clf_predictions, clf_model_names, timestep=None):
-    """Create separate, cleaner classification plots for better readability"""
+    """Create separate, cleaner classification plots for concentration models"""
     
     if not all_clf_predictions:
         return
@@ -758,6 +798,275 @@ def create_improved_classification_plots(all_clf_predictions, clf_model_names, t
     
     # Plot 3: Class distribution analysis
     create_classification_distribution_plots(all_clf_predictions, clf_model_names, colors)
+
+def create_individual_concentration_classification_plots(all_clf_predictions, clf_model_names, x_axis, x_label, colors):
+    """Create individual time series plots for each concentration classification model"""
+    
+    n_models = len(all_clf_predictions)
+    
+    # Determine grid layout
+    if n_models <= 2:
+        rows, cols = 1, n_models
+        fig_size = (12 * n_models, 6)
+    elif n_models <= 4:
+        rows, cols = 2, 2
+        fig_size = (16, 10)
+    else:
+        rows = (n_models + 2) // 3
+        cols = 3
+        fig_size = (18, 5 * rows)
+    
+    fig, axes = plt.subplots(rows, cols, figsize=fig_size)
+    if n_models == 1:
+        axes = [axes]
+    elif rows == 1:
+        axes = axes if hasattr(axes, '__iter__') else [axes]
+    else:
+        axes = axes.flatten()
+    
+    for i, (predictions, model_name) in enumerate(zip(all_clf_predictions, clf_model_names)):
+        ax = axes[i]
+        
+        # Downsample if needed for cleaner visualization
+        if len(x_axis) > 800:
+            step = len(x_axis) // 400
+            x_sampled = x_axis[::step]
+            pred_sampled = predictions[::step]
+        else:
+            x_sampled = x_axis
+            pred_sampled = predictions
+        
+        # Create clean step plot for better class visibility
+        ax.step(x_sampled, pred_sampled, where='mid', color=colors[i], 
+               linewidth=2.5, alpha=0.9, label=f'Model {i+1}')
+        
+        # Fill between steps for better visibility
+        ax.fill_between(x_sampled, pred_sampled, alpha=0.3, color=colors[i], step='mid')
+        
+        # Create descriptive model names for concentration
+        short_name = os.path.basename(model_name).replace(".pkl", "")
+        model_type = "Attention/Focus"
+        class_description = "Concentration Levels"
+            
+        if len(short_name) > 20:
+            display_name = short_name[:17] + "..."
+        else:
+            display_name = short_name.replace("_", " ")
+        
+        ax.set_title(f'{model_type} Classification Model {i+1}\n{display_name}', 
+                    fontweight='bold', fontsize=12, pad=15)
+        ax.set_xlabel(x_label, fontsize=10)
+        ax.set_ylabel('Concentration Level', fontsize=10)
+        
+        # Set fixed y-axis for concentration levels
+        ax.set_ylim(-0.1, 2.1)
+        ax.set_yticks([0, 1, 2])
+        ax.set_yticklabels(['Relaxed (0)', 'Neutral (1)', 'Concentrated (2)'], fontsize=9)
+        
+        ax.grid(True, alpha=0.3, linestyle='--')
+        ax.set_facecolor('#fafafa')
+        
+        # Add horizontal reference lines for concentration levels
+        ax.axhline(y=0, color='green', linestyle='--', alpha=0.5, linewidth=1)
+        ax.axhline(y=1, color='orange', linestyle='--', alpha=0.5, linewidth=1)
+        ax.axhline(y=2, color='red', linestyle='--', alpha=0.5, linewidth=1)
+        
+        # Add concentration level info
+        unique_classes = np.unique(predictions)
+        class_text = f'Concentration Classes: {", ".join(map(str, sorted(unique_classes)))} (0=Relaxed, 1=Neutral, 2=Concentrated)'
+            
+        ax.text(0.02, 0.98, class_text, transform=ax.transAxes, 
+               verticalalignment='top', fontsize=9,
+               bbox=dict(boxstyle="round,pad=0.3", facecolor="lightgreen", alpha=0.7))
+    
+    # Hide unused subplots
+    for i in range(n_models, len(axes)):
+        axes[i].set_visible(False)
+    
+    plt.suptitle(f'Individual EEG Concentration Classification Model Time Series - {n_models} Models (Muse Headset AF7,TP9,TP10,AF8)', 
+                fontsize=16, fontweight='bold', y=0.95)
+    plt.tight_layout(rect=[0, 0.02, 1, 0.93])
+    plt.show()
+
+def create_concentration_classification_comparison_plots(all_clf_predictions, clf_model_names, colors):
+    """Create comparison plots for concentration classification models"""
+    
+    n_models = len(all_clf_predictions)
+    
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+    
+    # Left: Enhanced boxplot
+    box_data = all_clf_predictions
+    box_labels = [f'Model {i+1}' for i in range(n_models)]
+    
+    bp = ax1.boxplot(box_data, labels=box_labels, patch_artist=True, 
+                    showmeans=True, meanline=True, widths=0.6)
+    
+    # Apply distinct colors to boxplots
+    for patch, color in zip(bp['boxes'], colors):
+        patch.set_facecolor(color)
+        patch.set_alpha(0.8)
+        patch.set_edgecolor('black')
+        patch.set_linewidth(1.5)
+    
+    # Style other boxplot elements
+    for median in bp['medians']:
+        median.set_color('black')
+        median.set_linewidth(2)
+    
+    ax1.set_title('EEG Concentration Classification Models - Statistical Distribution Analysis', 
+                 fontweight='bold', fontsize=14)
+    ax1.set_ylabel('Concentration Level', fontsize=11)
+    
+    # Set fixed y-axis for concentration levels
+    ax1.set_ylim(-0.1, 2.1)
+    ax1.set_yticks([0, 1, 2])
+    ax1.set_yticklabels(['Relaxed (0)', 'Neutral (1)', 'Concentrated (2)'], fontsize=9)
+    
+    ax1.tick_params(axis='x', labelsize=10)
+    ax1.grid(True, alpha=0.4, linestyle='--')
+    ax1.set_facecolor('#fafafa')
+    
+    # Add horizontal reference lines
+    ax1.axhline(y=0, color='green', linestyle='--', alpha=0.5, linewidth=1)
+    ax1.axhline(y=1, color='orange', linestyle='--', alpha=0.5, linewidth=1)
+    ax1.axhline(y=2, color='red', linestyle='--', alpha=0.5, linewidth=1)
+    
+    # Right: Enhanced class frequency comparison
+    # Always show all concentration levels (0, 1, 2) even if frequency is 0
+    all_classes = [0, 1, 2]  # Fixed concentration levels
+    
+    x_pos = np.arange(len(all_classes))
+    width = 0.8 / n_models
+    
+    # Find max frequency for label positioning
+    max_freq = 0
+    for predictions in all_clf_predictions:
+        for class_val in all_classes:
+            freq = np.sum(predictions == class_val)
+            max_freq = max(max_freq, freq)
+    
+    for i, (predictions, model_name) in enumerate(zip(all_clf_predictions, clf_model_names)):
+        frequencies = [np.sum(predictions == class_val) for class_val in all_classes]
+        offset = (i - n_models/2 + 0.5) * width
+        
+        model_label = f'Concentration Model {i+1}'
+            
+        bars = ax2.bar(x_pos + offset, frequencies, width, 
+                      label=model_label, color=colors[i], alpha=0.8,
+                      edgecolor='black', linewidth=1)
+        
+        # Add frequency labels on bars (show all, including 0)
+        for bar, freq in zip(bars, frequencies):
+            ax2.text(bar.get_x() + bar.get_width()/2., bar.get_height() + max_freq*0.01,
+                    f'{freq}', ha='center', va='bottom', fontsize=9, fontweight='bold')
+    
+    ax2.set_xlabel('Concentration Level Categories', fontsize=11)
+    ax2.set_ylabel('Frequency Count (Number of Predictions)', fontsize=11)
+    ax2.set_title('EEG Concentration Classification Models - Class Frequency Distribution', 
+                 fontweight='bold', fontsize=14)
+    ax2.set_xticks(x_pos)
+    
+    # Create concentration level labels (always show all 3)
+    class_labels = ["Relaxed (0)", "Neutral (1)", "Concentrated (2)"]
+    ax2.set_xticklabels(class_labels, fontsize=10)
+    ax2.legend(fontsize=10, loc='upper right', framealpha=0.9)
+    ax2.grid(True, alpha=0.4, linestyle='--')
+    ax2.set_facecolor('#fafafa')
+    
+    plt.suptitle('EEG-Based Concentration Classification Models - Statistical Comparison (Muse Headset Data)', 
+                fontsize=16, fontweight='bold', y=0.95)
+    plt.tight_layout(rect=[0, 0.02, 1, 0.93])
+    plt.show()
+
+def create_concentration_classification_distribution_plots(all_clf_predictions, clf_model_names, colors):
+    """Create distribution analysis plots for concentration classification models"""
+    
+    n_models = len(all_clf_predictions)
+    
+    # Get all unique classes across models
+    all_classes = set()
+    for predictions in all_clf_predictions:
+        all_classes.update(predictions)
+    all_classes = sorted(list(all_classes))
+    
+    # Create pie charts for each model
+    if n_models <= 3:
+        fig, axes = plt.subplots(1, n_models, figsize=(6 * n_models, 6))
+    else:
+        rows = (n_models + 2) // 3
+        fig, axes = plt.subplots(rows, 3, figsize=(18, 6 * rows))
+        axes = axes.flatten()
+    
+    if n_models == 1:
+        axes = [axes]
+    
+    for i, (predictions, model_name) in enumerate(zip(all_clf_predictions, clf_model_names)):
+        ax = axes[i]
+        
+        # Calculate class frequencies
+        class_counts = {}
+        for class_val in all_classes:
+            count = np.sum(predictions == class_val)
+            if count > 0:
+                class_counts[class_val] = count
+        
+        if class_counts:
+            # Create concentration level labels
+            labels = []
+            for c in class_counts.keys():
+                if c == 0:
+                    labels.append("Relaxed (0)")
+                elif c == 1:
+                    labels.append("Neutral (1)")
+                elif c == 2:
+                    labels.append("Concentrated (2)")
+                else:
+                    labels.append(f"Level {c}")
+            
+            sizes = list(class_counts.values())
+            
+            # Use distinct colors - green for relaxed, orange for neutral, red for concentrated
+            pie_colors = []
+            for c in class_counts.keys():
+                if c == 0:
+                    pie_colors.append('#2ECC71')  # Green for relaxed
+                elif c == 1:
+                    pie_colors.append('#F39C12')  # Orange for neutral
+                elif c == 2:
+                    pie_colors.append('#E74C3C')  # Red for concentrated
+                else:
+                    pie_colors.append(colors[i % len(colors)])
+            
+            wedges, texts, autotexts = ax.pie(sizes, labels=labels, colors=pie_colors, autopct='%1.1f%%', 
+                                             startangle=90, textprops={'fontsize': 10})
+            
+            # Make percentage text bold
+            for autotext in autotexts:
+                autotext.set_color('white')
+                autotext.set_fontweight('bold')
+                autotext.set_fontsize(9)
+        
+        # Create descriptive model titles
+        short_name = os.path.basename(model_name).replace(".pkl", "")
+        model_type = "Attention/Focus"
+            
+        if len(short_name) > 15:
+            display_name = short_name[:12] + "..."
+        else:
+            display_name = short_name.replace("_", " ")
+        
+        ax.set_title(f'{model_type} Model {i+1}\n{display_name}\nConcentration Distribution (%)', 
+                    fontweight='bold', fontsize=11)
+    
+    # Hide unused subplots
+    for i in range(n_models, len(axes)):
+        axes[i].set_visible(False)
+    
+    plt.suptitle('EEG Concentration Classification Models - Level Distribution Analysis (Muse EEG AF7,TP9,TP10,AF8)', 
+                fontsize=16, fontweight='bold', y=0.95)
+    plt.tight_layout(rect=[0, 0.02, 1, 0.93])
+    plt.show()
 
 def create_individual_classification_plots(all_clf_predictions, clf_model_names, x_axis, x_label, colors):
     """Create individual time series plots for each classification model"""
@@ -1038,25 +1347,15 @@ def create_classification_distribution_plots(all_clf_predictions, clf_model_name
     plt.tight_layout(rect=[0, 0.02, 1, 0.93])
     plt.show()
 
-def create_overview_plot(all_reg_predictions, all_clf_predictions, all_other_predictions,
-                        reg_model_names, clf_model_names, other_model_names, timestep=None):
-    """Create an improved overview plot with better scaling and organization"""
+def create_concentration_overview_plot(all_reg_predictions, all_clf_predictions, reg_model_names, clf_model_names, timestep=None):
+    """Create the main concentration overview plot matching your image"""
     
-    total_models = len(all_reg_predictions) + len(all_clf_predictions) + len(all_other_predictions)
-    if total_models == 0:
+    if not all_reg_predictions and not all_clf_predictions:
         print("No models to visualize")
         return
     
-    # Create subplots based on what we have
-    if all_reg_predictions and all_clf_predictions:
-        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(20, 12))
-        has_both = True
-    elif all_reg_predictions or all_clf_predictions or all_other_predictions:
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
-        ax3 = ax4 = None
-        has_both = False
-    else:
-        return
+    # Create the 2x2 subplot layout as shown in your image
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(20, 12))
     
     # Prepare x-axis with better labeling
     if timestep is not None and len(timestep) > 0:
@@ -1064,19 +1363,18 @@ def create_overview_plot(all_reg_predictions, all_clf_predictions, all_other_pre
         x_label = 'Time (seconds from EEG recording start)'
     else:
         # Use the longest prediction array for x-axis
-        max_len = max([len(pred) for pred in all_reg_predictions + all_clf_predictions + all_other_predictions])
+        if all_reg_predictions and all_clf_predictions:
+            max_len = max(len(all_reg_predictions[0]), len(all_clf_predictions[0]))
+        elif all_reg_predictions:
+            max_len = len(all_reg_predictions[0])
+        else:
+            max_len = len(all_clf_predictions[0])
         x_axis = np.arange(max_len)
-        x_label = 'EEG Sample Index (chronological order)'
+        x_label = 'Time (seconds from EEG recording start)'
     
-    # Plot regression models with consistent scaling
+    # TOP LEFT: Plot regression models
     if all_reg_predictions:
-        # Calculate global scale for regression models
-        all_reg_values = np.concatenate(all_reg_predictions)
-        y_min, y_max = np.min(all_reg_values), np.max(all_reg_values)
-        y_margin = (y_max - y_min) * 0.05
-        y_lim = (y_min - y_margin, y_max + y_margin)
-        
-        # Downsample for cleaner visualization if needed
+        # Downsample if needed
         if len(x_axis) > 500:
             step = len(x_axis) // 300
             x_axis_sampled = x_axis[::step]
@@ -1084,165 +1382,174 @@ def create_overview_plot(all_reg_predictions, all_clf_predictions, all_other_pre
             step = 1
             x_axis_sampled = x_axis
         
-        # Use more distinct colors for better differentiation
-        distinct_colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F']
-        colors = distinct_colors[:len(all_reg_predictions)] if len(all_reg_predictions) <= len(distinct_colors) else plt.cm.tab10(np.linspace(0, 1, len(all_reg_predictions)))
+        # Use distinct colors
+        distinct_colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4']
+        colors = distinct_colors[:len(all_reg_predictions)]
         
         for i, (predictions, model_name) in enumerate(zip(all_reg_predictions, reg_model_names)):
             predictions_sampled = predictions[::step]
-            # Create shorter labels for overview plot
             short_name = os.path.basename(model_name).replace('.pkl', '')
             if len(short_name) > 12:
                 short_name = short_name[:9] + "..."
-            label = f"R{i+1}: {short_name}"
-            ax1.plot(x_axis_sampled, predictions_sampled, label=label, color=colors[i], 
+            label = f"R1: {short_name}"
+            ax1.plot(x_axis_sampled, predictions_sampled, label=label, color=colors[i % len(colors)], 
                     linewidth=3, alpha=0.9, marker='o', markersize=2)
         
-        ax1.set_title('EEG Regression Models - Temporal Predictions (Consistent Scale)', fontsize=14, fontweight='bold')
+        ax1.set_title('EEG Concentration Regression Models - Temporal Predictions', fontsize=14, fontweight='bold')
         ax1.set_xlabel(x_label, fontsize=10)
-        ax1.set_ylabel('EEG-Derived Score', fontsize=10)
-        ax1.set_ylim(y_lim)  # Consistent scaling
-        # Better legend positioning to prevent overlap
-        ax1.legend(loc='upper right', fontsize=10, framealpha=0.95, 
-                  ncol=1 if len(all_reg_predictions) <= 3 else 2,
-                  fancybox=True, shadow=True)
+        ax1.set_ylabel('Concentration Level', fontsize=10)
+        ax1.set_ylim(-0.1, 2.1)  # Fixed concentration scale
+        
+        # Set y-axis ticks and labels
+        ax1.set_yticks([0, 1, 2])
+        ax1.set_yticklabels(['Relaxed (0)', 'Neutral (1)', 'Concentrated (2)'], fontsize=9)
+        
+        # Add reference lines
+        ax1.axhline(y=0, color='green', linestyle='--', alpha=0.5, linewidth=1)
+        ax1.axhline(y=1, color='orange', linestyle='--', alpha=0.5, linewidth=1)
+        ax1.axhline(y=2, color='red', linestyle='--', alpha=0.5, linewidth=1)
+        
+        ax1.legend(loc='upper right', fontsize=10, framealpha=0.95)
         ax1.grid(True, alpha=0.4, linestyle='--')
-        ax1.set_facecolor('#f8f9fa')  # Light background for better contrast
-        
-        # Add summary statistics box
-        if len(all_reg_predictions) > 1:
-            mean_pred = np.mean([np.mean(pred) for pred in all_reg_predictions])
-            std_pred = np.std([np.mean(pred) for pred in all_reg_predictions])
-            ax1.text(0.02, 0.98, f'Model Mean Avg: {mean_pred:.3f}\nModel Std: {std_pred:.3f}', 
-                    transform=ax1.transAxes,
-                    bbox=dict(boxstyle="round,pad=0.3", facecolor="lightblue", alpha=0.8),
-                    verticalalignment='top')
-        
-        # Create boxplot in second subplot if we don't have classification models
-        if not has_both and ax2 is not None:
-            box_data = all_reg_predictions
-            box_labels = [f'Model {i+1}' for i in range(len(all_reg_predictions))]
-            
-            bp = ax2.boxplot(box_data, labels=box_labels, patch_artist=True, 
-                           showmeans=True, meanline=True)
-            
-            # Color the boxplots
-            for patch, color in zip(bp['boxes'], colors):
-                patch.set_facecolor(color)
-                patch.set_alpha(0.7)
-            
-            ax2.set_title('Regression Models - Distribution Comparison', fontsize=14, fontweight='bold')
-            ax2.set_ylabel('Predicted Value')
-            ax2.grid(True, alpha=0.3)
+        ax1.set_facecolor('#f8f9fa')
+    else:
+        ax1.text(0.5, 0.5, 'No Regression Models', ha='center', va='center', transform=ax1.transAxes, fontsize=16)
+        ax1.set_title('EEG Concentration Regression Models - Temporal Predictions', fontsize=14, fontweight='bold')
     
-    # Plot classification models
+    # TOP RIGHT: Plot classification models
     if all_clf_predictions:
-        plot_ax = ax2 if has_both else (ax1 if not all_reg_predictions else ax2)
-        
-        if timestep is not None and len(timestep) > 0:
-            x_axis_clf = timestep
-        else:
-            x_axis_clf = np.arange(len(all_clf_predictions[0]))
-        
-        # Downsample for cleaner visualization if needed
-        if len(x_axis_clf) > 500:
-            step = len(x_axis_clf) // 300
-            x_axis_sampled = x_axis_clf[::step]
-        else:
-            step = 1
-            x_axis_sampled = x_axis_clf
-        
-        # Use more distinct colors for classification
-        distinct_colors_clf = ['#E74C3C', '#3498DB', '#2ECC71', '#F39C12', '#9B59B6', '#1ABC9C', '#E67E22', '#34495E']
-        colors = distinct_colors_clf[:len(all_clf_predictions)] if len(all_clf_predictions) <= len(distinct_colors_clf) else plt.cm.tab10(np.linspace(0, 1, len(all_clf_predictions)))
-        
+        # Use same x-axis setup
         for i, (predictions, model_name) in enumerate(zip(all_clf_predictions, clf_model_names)):
             predictions_sampled = predictions[::step]
-            # Create shorter labels for overview plot
             short_name = os.path.basename(model_name).replace('.pkl', '')
             if len(short_name) > 12:
                 short_name = short_name[:9] + "..."
-            label = f"C{i+1}: {short_name}"
-            plot_ax.plot(x_axis_sampled, predictions_sampled, label=label, color=colors[i], 
-                        linewidth=3, alpha=0.9, marker='s', markersize=3)
+            label = f"C1: {short_name}"
+            ax2.step(x_axis_sampled, predictions_sampled, where='mid', label=label, color='#E74C3C', 
+                    linewidth=3, alpha=0.9)
         
-        plot_ax.set_title('EEG Classification Models - Temporal Class Predictions', fontsize=14, fontweight='bold')
-        plot_ax.set_xlabel(x_label, fontsize=10)
-        plot_ax.set_ylabel('EEG-Predicted Class', fontsize=10)
-        # Better legend positioning
-        plot_ax.legend(loc='upper right', fontsize=10, framealpha=0.95,
-                      ncol=1 if len(all_clf_predictions) <= 3 else 2,
-                      fancybox=True, shadow=True)
-        plot_ax.grid(True, alpha=0.4, linestyle='--')
-        plot_ax.set_facecolor('#f8f9fa')  # Light background for better contrast
+        ax2.set_title('EEG Concentration Classification Models - Temporal Class Predictions', fontsize=14, fontweight='bold')
+        ax2.set_xlabel(x_label, fontsize=10)
+        ax2.set_ylabel('Concentration Level', fontsize=10)
+        ax2.set_ylim(-0.1, 2.1)
         
-        # Create boxplot for classification if we have both model types
-        if has_both and ax4 is not None:
-            box_data = all_clf_predictions
-            box_labels = [f'C{i+1}' for i in range(len(all_clf_predictions))]
-            
-            bp = ax4.boxplot(box_data, labels=box_labels, patch_artist=True, 
-                           showmeans=True, meanline=True)
-            
-            # Color the boxplots
-            for patch, color in zip(bp['boxes'], colors):
-                patch.set_facecolor(color)
-                patch.set_alpha(0.7)
-            
-            ax4.set_title('Classification Models - Distribution Comparison', fontsize=14, fontweight='bold')
-            ax4.set_ylabel('Predicted Class Value', fontsize=10)
-            ax4.tick_params(axis='x', labelsize=9)
-            ax4.grid(True, alpha=0.3)
+        # Set y-axis ticks and labels
+        ax2.set_yticks([0, 1, 2])
+        ax2.set_yticklabels(['Relaxed (0)', 'Neutral (1)', 'Concentrated (2)'], fontsize=9)
         
-        # Create frequency bar chart if we have both types and ax3 available
-        if has_both and ax3 is not None:
-            # Get unique classes across all models
-            all_classes = set()
-            for predictions in all_clf_predictions:
-                all_classes.update(predictions)
-            all_classes = sorted(list(all_classes))
-            
-            x_pos = np.arange(len(all_classes))
-            width = 0.8 / len(all_clf_predictions)
-            
-            for i, (predictions, model_name) in enumerate(zip(all_clf_predictions, clf_model_names)):
-                frequencies = [np.sum(predictions == class_val) for class_val in all_classes]
-                offset = (i - len(all_clf_predictions)/2 + 0.5) * width
-                ax3.bar(x_pos + offset, frequencies, width, 
-                       label=f'C{i+1}', color=colors[i], alpha=0.7)
-            
-            ax3.set_xlabel('Predicted Classes', fontsize=10)
-            ax3.set_ylabel('Frequency', fontsize=10)
-            ax3.set_title('Classification Models - Class Distribution', fontsize=14, fontweight='bold')
-            ax3.set_xticks(x_pos)
-            ax3.set_xticklabels([f'C{c}' for c in all_classes], fontsize=9,
-                              rotation=45 if len(all_classes) > 5 else 0)
-            ax3.legend(fontsize=9, ncol=min(len(all_clf_predictions), 4))
-            ax3.grid(True, alpha=0.3)
+        # Add reference lines
+        ax2.axhline(y=0, color='green', linestyle='--', alpha=0.5, linewidth=1)
+        ax2.axhline(y=1, color='orange', linestyle='--', alpha=0.5, linewidth=1)
+        ax2.axhline(y=2, color='red', linestyle='--', alpha=0.5, linewidth=1)
+        
+        ax2.legend(loc='upper right', fontsize=10, framealpha=0.95)
+        ax2.grid(True, alpha=0.4, linestyle='--')
+        ax2.set_facecolor('#f8f9fa')
+    else:
+        ax2.text(0.5, 0.5, 'No Classification Models', ha='center', va='center', transform=ax2.transAxes, fontsize=16)
+        ax2.set_title('EEG Concentration Classification Models - Temporal Class Predictions', fontsize=14, fontweight='bold')
     
-    plt.suptitle(f'EEG Model Predictions Overview - {total_models} Models (Muse Headset: AF7,TP9,TP10,AF8)', 
+    # BOTTOM LEFT: Classification frequency bar chart
+    if all_clf_predictions:
+        # Always show all concentration levels (0, 1, 2) even if frequency is 0
+        all_classes = [0, 1, 2]  # Fixed concentration levels
+        
+        x_pos = np.arange(len(all_classes))
+        width = 0.8 / len(all_clf_predictions)
+        
+        # Find max frequency for label positioning
+        max_freq = 0
+        for predictions in all_clf_predictions:
+            for class_val in all_classes:
+                freq = np.sum(predictions == class_val)
+                max_freq = max(max_freq, freq)
+        
+        for i, (predictions, model_name) in enumerate(zip(all_clf_predictions, clf_model_names)):
+            frequencies = [np.sum(predictions == class_val) for class_val in all_classes]
+            offset = (i - len(all_clf_predictions)/2 + 0.5) * width
+            
+            bars = ax3.bar(x_pos + offset, frequencies, width, 
+                          label=f'C{i+1}', color='#E74C3C', alpha=0.8,
+                          edgecolor='black', linewidth=1)
+            
+            # Add frequency labels on bars (show all, including 0)
+            for bar, freq in zip(bars, frequencies):
+                ax3.text(bar.get_x() + bar.get_width()/2., bar.get_height() + max_freq*0.01,
+                        f'{freq}', ha='center', va='bottom', fontsize=9, fontweight='bold')
+        
+        ax3.set_xlabel('Predicted Classes', fontsize=11)
+        ax3.set_ylabel('Frequency', fontsize=11)
+        ax3.set_title('Classification Models - Class Distribution', fontsize=14, fontweight='bold')
+        ax3.set_xticks(x_pos)
+        
+        # Create concentration level labels (always show all 3)
+        class_labels = ["Relaxed", "Neutral", "Concentrated"]
+        ax3.set_xticklabels(class_labels, fontsize=10)
+        if len(all_clf_predictions) > 1:
+            ax3.legend(fontsize=10, loc='upper right', framealpha=0.9)
+        ax3.grid(True, alpha=0.4, linestyle='--')
+        ax3.set_facecolor('#fafafa')
+    else:
+        ax3.text(0.5, 0.5, 'No Classification Models', ha='center', va='center', transform=ax3.transAxes, fontsize=16)
+        ax3.set_title('Classification Models - Class Distribution', fontsize=14, fontweight='bold')
+    
+    # BOTTOM RIGHT: Classification boxplot
+    if all_clf_predictions:
+        box_data = all_clf_predictions
+        box_labels = [f'C{i+1}' for i in range(len(all_clf_predictions))]
+        
+        bp = ax4.boxplot(box_data, labels=box_labels, patch_artist=True, 
+                       showmeans=True, meanline=True)
+        
+        # Color the boxplots
+        for patch in bp['boxes']:
+            patch.set_facecolor('#E74C3C')
+            patch.set_alpha(0.7)
+        
+        ax4.set_title('Concentration Classification Models - Distribution Comparison', fontsize=14, fontweight='bold')
+        ax4.set_ylabel('Concentration Level', fontsize=10)
+        ax4.set_ylim(-0.1, 2.1)
+        
+        # Set y-axis ticks and labels
+        ax4.set_yticks([0, 1, 2])
+        ax4.set_yticklabels(['Relaxed (0)', 'Neutral (1)', 'Concentrated (2)'], fontsize=9)
+        
+        # Add reference lines
+        ax4.axhline(y=0, color='green', linestyle='--', alpha=0.5, linewidth=1)
+        ax4.axhline(y=1, color='orange', linestyle='--', alpha=0.5, linewidth=1)
+        ax4.axhline(y=2, color='red', linestyle='--', alpha=0.5, linewidth=1)
+        
+        ax4.tick_params(axis='x', labelsize=9)
+        ax4.grid(True, alpha=0.3)
+        ax4.set_facecolor('#fafafa')
+    else:
+        ax4.text(0.5, 0.5, 'No Classification Models', ha='center', va='center', transform=ax4.transAxes, fontsize=16)
+        ax4.set_title('Concentration Classification Models - Distribution Comparison', fontsize=14, fontweight='bold')
+    
+    total_models = len(all_reg_predictions) + len(all_clf_predictions)
+    plt.suptitle(f'EEG Concentration Model Predictions Overview - {total_models} Models (Muse Headset: AF7,TP9,TP10,AF8)', 
                 fontsize=16, fontweight='bold')
-    # Prevent overlap with better spacing
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
     plt.show()
 
-def create_comparison_plot(predictions_list, model_names, title, timestep=None):
-    """Create a simple comparison plot for multiple models of the same type"""
+def create_concentration_regression_plot(all_reg_predictions, reg_model_names, timestep=None):
+    """Create a dedicated plot for concentration regression models"""
     
-    if len(predictions_list) < 2:
+    if not all_reg_predictions:
         return
     
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
-    
-    # Time series comparison
+    # Prepare x-axis
     if timestep is not None and len(timestep) > 0:
         x_axis = timestep
-        x_label = 'Timestep'
+        x_label = 'Time (seconds from EEG recording start)'
     else:
-        x_axis = np.arange(len(predictions_list[0]))
-        x_label = 'Sample Index'
+        x_axis = np.arange(len(all_reg_predictions[0]))
+        x_label = 'EEG Sample Index (chronological order)'
     
-    # Downsample for cleaner visualization if we have too many points
+    # Create figure with 2 subplots
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(16, 10))
+    
+    # Downsample if needed
     if len(x_axis) > 500:
         step = len(x_axis) // 300
         x_axis_sampled = x_axis[::step]
@@ -1250,29 +1557,275 @@ def create_comparison_plot(predictions_list, model_names, title, timestep=None):
         step = 1
         x_axis_sampled = x_axis
     
-    colors = plt.cm.tab10(np.linspace(0, 1, len(predictions_list)))
+    # Use distinct colors
+    distinct_colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD']
+    colors = distinct_colors[:len(all_reg_predictions)]
     
-    for i, (predictions, model_name, color) in enumerate(zip(predictions_list, model_names, colors)):
+    # TOP: Time series plot
+    for i, (predictions, model_name) in enumerate(zip(all_reg_predictions, reg_model_names)):
         predictions_sampled = predictions[::step]
         short_name = os.path.basename(model_name).replace('.pkl', '')
-        ax1.plot(x_axis_sampled, predictions_sampled, label=f'Model {i+1}', 
-                color=color, linewidth=1.5, alpha=0.8, marker='o', markersize=1)
+        if len(short_name) > 15:
+            short_name = short_name[:12] + "..."
+        label = f"Model {i+1}: {short_name}"
+        ax1.plot(x_axis_sampled, predictions_sampled, label=label, color=colors[i % len(colors)], 
+                linewidth=3, alpha=0.9, marker='o', markersize=1.5)
     
-    ax1.set_title(f'{title} - Time Series (Downsampled)', fontsize=14, fontweight='bold')
-    ax1.set_xlabel(x_label)
-    ax1.set_ylabel('Predicted Value')
-    ax1.legend()
-    ax1.grid(True, alpha=0.3)
+    ax1.set_title('EEG Concentration Regression Models - Continuous Predictions Over Time', 
+                 fontsize=16, fontweight='bold')
+    ax1.set_xlabel(x_label, fontsize=12)
+    ax1.set_ylabel('Concentration Level (Continuous Scale)', fontsize=12)
+    ax1.set_ylim(-0.1, 2.1)  # Fixed concentration scale
     
-    # Box plot for distribution comparison
-    ax2.boxplot(predictions_list, tick_labels=[f'Model {i+1}' for i in range(len(predictions_list))])
-    ax2.set_title(f'{title} - Distribution', fontsize=14, fontweight='bold')
-    ax2.set_xlabel('Model')
-    ax2.set_ylabel('Predicted Value')
-    ax2.grid(True, alpha=0.3)
+    # Set y-axis ticks and labels
+    ax1.set_yticks([0, 1, 2])
+    ax1.set_yticklabels(['Relaxed (0)', 'Neutral (1)', 'Concentrated (2)'], fontsize=10)
     
-    plt.suptitle(f'{title} Comparison', fontsize=16, fontweight='bold')
-    plt.tight_layout()
+    # Add reference lines
+    ax1.axhline(y=0, color='green', linestyle='--', alpha=0.6, linewidth=2, label='Relaxed Threshold')
+    ax1.axhline(y=1, color='orange', linestyle='--', alpha=0.6, linewidth=2, label='Neutral Threshold')
+    ax1.axhline(y=2, color='red', linestyle='--', alpha=0.6, linewidth=2, label='Concentrated Threshold')
+    
+    ax1.legend(loc='upper right', fontsize=10, framealpha=0.95)
+    ax1.grid(True, alpha=0.4, linestyle='--')
+    ax1.set_facecolor('#f8f9fa')
+    
+    # BOTTOM: Statistical distribution boxplot
+    box_data = all_reg_predictions
+    box_labels = [f'Model {i+1}' for i in range(len(all_reg_predictions))]
+    
+    bp = ax2.boxplot(box_data, labels=box_labels, patch_artist=True, 
+                    showmeans=True, meanline=True, widths=0.7)
+    
+    # Color the boxplots with the same colors as the lines
+    for i, patch in enumerate(bp['boxes']):
+        patch.set_facecolor(colors[i % len(colors)])
+        patch.set_alpha(0.8)
+        patch.set_edgecolor('black')
+        patch.set_linewidth(1.5)
+    
+    # Style other boxplot elements
+    for median in bp['medians']:
+        median.set_color('black')
+        median.set_linewidth(2)
+    
+    ax2.set_title('Regression Models - Statistical Distribution Analysis', 
+                 fontsize=16, fontweight='bold')
+    ax2.set_ylabel('Concentration Level Distribution', fontsize=12)
+    ax2.set_ylim(-0.1, 2.1)
+    
+    # Set y-axis ticks and labels
+    ax2.set_yticks([0, 1, 2])
+    ax2.set_yticklabels(['Relaxed (0)', 'Neutral (1)', 'Concentrated (2)'], fontsize=10)
+    
+    # Add reference lines
+    ax2.axhline(y=0, color='green', linestyle='--', alpha=0.5, linewidth=1)
+    ax2.axhline(y=1, color='orange', linestyle='--', alpha=0.5, linewidth=1)
+    ax2.axhline(y=2, color='red', linestyle='--', alpha=0.5, linewidth=1)
+    
+    ax2.tick_params(axis='x', labelsize=11)
+    ax2.grid(True, alpha=0.4, linestyle='--')
+    ax2.set_facecolor('#fafafa')
+    
+    plt.suptitle(f'EEG Concentration Regression Models Analysis - {len(all_reg_predictions)} Models (Muse Headset)', 
+                fontsize=18, fontweight='bold')
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    plt.show()
+
+def create_concentration_classification_plot(all_clf_predictions, clf_model_names, timestep=None):
+    """Create a dedicated plot for concentration classification models"""
+    
+    if not all_clf_predictions:
+        return
+    
+    # Prepare x-axis
+    if timestep is not None and len(timestep) > 0:
+        x_axis = timestep
+        x_label = 'Time (seconds from EEG recording start)'
+    else:
+        x_axis = np.arange(len(all_clf_predictions[0]))
+        x_label = 'EEG Sample Index (chronological order)'
+    
+    # Create figure with 2x2 subplots
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(20, 12))
+    
+    # Downsample if needed
+    if len(x_axis) > 500:
+        step = len(x_axis) // 300
+        x_axis_sampled = x_axis[::step]
+    else:
+        step = 1
+        x_axis_sampled = x_axis
+    
+    # Use distinct colors
+    distinct_colors = ['#E74C3C', '#3498DB', '#2ECC71', '#F39C12', '#9B59B6', '#1ABC9C']
+    colors = distinct_colors[:len(all_clf_predictions)]
+    
+    # TOP LEFT: Time series step plot
+    for i, (predictions, model_name) in enumerate(zip(all_clf_predictions, clf_model_names)):
+        predictions_sampled = predictions[::step]
+        short_name = os.path.basename(model_name).replace('.pkl', '')
+        if len(short_name) > 15:
+            short_name = short_name[:12] + "..."
+        label = f"Model {i+1}: {short_name}"
+        ax1.step(x_axis_sampled, predictions_sampled, where='mid', label=label, 
+                color=colors[i % len(colors)], linewidth=3, alpha=0.9)
+        ax1.fill_between(x_axis_sampled, predictions_sampled, alpha=0.3, 
+                        color=colors[i % len(colors)], step='mid')
+    
+    ax1.set_title('EEG Concentration Classification Models - Discrete Class Predictions Over Time', 
+                 fontsize=14, fontweight='bold')
+    ax1.set_xlabel(x_label, fontsize=11)
+    ax1.set_ylabel('Concentration Level (Discrete Classes)', fontsize=11)
+    ax1.set_ylim(-0.1, 2.1)
+    
+    # Set y-axis ticks and labels
+    ax1.set_yticks([0, 1, 2])
+    ax1.set_yticklabels(['Relaxed (0)', 'Neutral (1)', 'Concentrated (2)'], fontsize=10)
+    
+    # Add reference lines
+    ax1.axhline(y=0, color='green', linestyle='--', alpha=0.5, linewidth=1)
+    ax1.axhline(y=1, color='orange', linestyle='--', alpha=0.5, linewidth=1)
+    ax1.axhline(y=2, color='red', linestyle='--', alpha=0.5, linewidth=1)
+    
+    ax1.legend(loc='upper right', fontsize=10, framealpha=0.95)
+    ax1.grid(True, alpha=0.4, linestyle='--')
+    ax1.set_facecolor('#f8f9fa')
+    
+    # TOP RIGHT: Class frequency distribution (THIS IS THE BOTTOM LEFT PLOT FROM OVERVIEW)
+    # Always show all concentration levels (0, 1, 2) even if frequency is 0
+    all_classes = [0, 1, 2]  # Fixed concentration levels
+    
+    x_pos = np.arange(len(all_classes))
+    width = 0.8 / len(all_clf_predictions)
+    
+    # Find max frequency for label positioning
+    max_freq = 0
+    for predictions in all_clf_predictions:
+        for class_val in all_classes:
+            freq = np.sum(predictions == class_val)
+            max_freq = max(max_freq, freq)
+    
+    for i, (predictions, model_name) in enumerate(zip(all_clf_predictions, clf_model_names)):
+        frequencies = [np.sum(predictions == class_val) for class_val in all_classes]
+        offset = (i - len(all_clf_predictions)/2 + 0.5) * width
+        
+        bars = ax2.bar(x_pos + offset, frequencies, width, 
+                      label=f'Model {i+1}', color=colors[i % len(colors)], alpha=0.8,
+                      edgecolor='black', linewidth=1)
+        
+        # Add frequency labels on bars (show all, including 0)
+        for bar, freq in zip(bars, frequencies):
+            ax2.text(bar.get_x() + bar.get_width()/2., bar.get_height() + max_freq*0.01,
+                    f'{freq}', ha='center', va='bottom', fontsize=9, fontweight='bold')
+    
+    ax2.set_xlabel('Predicted Concentration Classes', fontsize=11)
+    ax2.set_ylabel('Frequency Count (Number of Predictions)', fontsize=11)
+    ax2.set_title('Classification Models - Class Distribution (Frequency Bars)', fontsize=14, fontweight='bold')
+    ax2.set_xticks(x_pos)
+    
+    # Create concentration level labels (always show all 3)
+    class_labels = ["Relaxed", "Neutral", "Concentrated"]
+    ax2.set_xticklabels(class_labels, fontsize=10)
+    if len(all_clf_predictions) > 1:
+        ax2.legend(fontsize=10, loc='upper right', framealpha=0.9)
+    ax2.grid(True, alpha=0.4, linestyle='--')
+    ax2.set_facecolor('#fafafa')
+    
+    # BOTTOM LEFT: Statistical distribution boxplot (THIS IS THE BOTTOM RIGHT PLOT FROM OVERVIEW)
+    box_data = all_clf_predictions
+    box_labels = [f'Model {i+1}' for i in range(len(all_clf_predictions))]
+    
+    bp = ax3.boxplot(box_data, labels=box_labels, patch_artist=True, 
+                    showmeans=True, meanline=True, widths=0.7)
+    
+    # Color the boxplots
+    for i, patch in enumerate(bp['boxes']):
+        patch.set_facecolor(colors[i % len(colors)])
+        patch.set_alpha(0.7)
+        patch.set_edgecolor('black')
+        patch.set_linewidth(1.5)
+    
+    # Style other boxplot elements
+    for median in bp['medians']:
+        median.set_color('black')
+        median.set_linewidth(2)
+    
+    ax3.set_title('Concentration Classification Models - Distribution Comparison (Boxplot)', 
+                 fontsize=14, fontweight='bold')
+    ax3.set_ylabel('Concentration Level Distribution', fontsize=11)
+    ax3.set_ylim(-0.1, 2.1)
+    
+    # Set y-axis ticks and labels
+    ax3.set_yticks([0, 1, 2])
+    ax3.set_yticklabels(['Relaxed (0)', 'Neutral (1)', 'Concentrated (2)'], fontsize=10)
+    
+    # Add reference lines
+    ax3.axhline(y=0, color='green', linestyle='--', alpha=0.5, linewidth=1)
+    ax3.axhline(y=1, color='orange', linestyle='--', alpha=0.5, linewidth=1)
+    ax3.axhline(y=2, color='red', linestyle='--', alpha=0.5, linewidth=1)
+    
+    ax3.tick_params(axis='x', labelsize=10)
+    ax3.grid(True, alpha=0.3)
+    ax3.set_facecolor('#fafafa')
+    
+    # BOTTOM RIGHT: Class proportion pie chart
+    if len(all_clf_predictions) == 1:
+        # Single model pie chart
+        predictions = all_clf_predictions[0]
+        class_counts = {}
+        for class_val in all_classes:
+            count = np.sum(predictions == class_val)
+            if count > 0:
+                class_counts[class_val] = count
+        
+        if class_counts:
+            labels = []
+            for c in class_counts.keys():
+                if c == 0:
+                    labels.append("Relaxed (0)")
+                elif c == 1:
+                    labels.append("Neutral (1)")
+                elif c == 2:
+                    labels.append("Concentrated (2)")
+                else:
+                    labels.append(f"Level {c}")
+            
+            sizes = list(class_counts.values())
+            
+            # Use concentration-specific colors
+            pie_colors = []
+            for c in class_counts.keys():
+                if c == 0:
+                    pie_colors.append('#2ECC71')  # Green for relaxed
+                elif c == 1:
+                    pie_colors.append('#F39C12')  # Orange for neutral
+                elif c == 2:
+                    pie_colors.append('#E74C3C')  # Red for concentrated
+                else:
+                    pie_colors.append(colors[0])
+            
+            wedges, texts, autotexts = ax4.pie(sizes, labels=labels, colors=pie_colors, 
+                                             autopct='%1.1f%%', startangle=90, 
+                                             textprops={'fontsize': 11})
+            
+            # Make percentage text bold
+            for autotext in autotexts:
+                autotext.set_color('white')
+                autotext.set_fontweight('bold')
+                autotext.set_fontsize(10)
+        
+        ax4.set_title('Classification Model - Overall Class Distribution', 
+                     fontsize=14, fontweight='bold')
+    else:
+        # Multiple models - show comparison heatmap or grouped bars
+        ax4.text(0.5, 0.5, f'Multiple Models\n({len(all_clf_predictions)} total)\nSee frequency bars above', 
+                ha='center', va='center', transform=ax4.transAxes, fontsize=14, fontweight='bold')
+        ax4.set_title('Multiple Classification Models Summary', fontsize=14, fontweight='bold')
+    
+    plt.suptitle(f'EEG Concentration Classification Models Analysis - {len(all_clf_predictions)} Models (Muse Headset)', 
+                fontsize=18, fontweight='bold')
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
     plt.show()
 
 def save_simple_visualizations(all_reg_predictions, all_clf_predictions, all_other_predictions,
@@ -1289,75 +1842,12 @@ def save_simple_visualizations(all_reg_predictions, all_clf_predictions, all_oth
     
     print(f"Saving visualizations to {output_dir}/...")
     
-    # Save overview plot (simplified version without complex subplots for saving)
-    total_models = len(all_reg_predictions) + len(all_clf_predictions) + len(all_other_predictions)
-    if total_models > 0:
-        fig, ax = plt.subplots(1, 1, figsize=(15, 6))
-        
-        # Plot all predictions in one view
-        all_predictions = all_reg_predictions + all_clf_predictions + all_other_predictions
-        all_names = reg_model_names + clf_model_names + other_model_names
-        all_types = ['Reg']*len(all_reg_predictions) + ['Clf']*len(all_clf_predictions) + ['Other']*len(all_other_predictions)
-        
-        if timestep is not None and len(timestep) > 0:
-            x_axis = timestep
-            x_label = 'Timestep'
-        else:
-            x_axis = np.arange(len(all_predictions[0]))
-            x_label = 'Sample Index'
-        
-        colors = plt.cm.Set1(np.linspace(0, 1, len(all_predictions)))
-        
-        for i, (predictions, model_name, model_type, color) in enumerate(zip(all_predictions, all_names, all_types, colors)):
-            label = f"{model_type} Model {i+1}: {os.path.basename(model_name).replace('.pkl', '')}"
-            ax.plot(x_axis, predictions, label=label, color=color, linewidth=2, alpha=0.9)
-        
-        ax.set_title('EEG Model Predictions Overview', fontsize=14, fontweight='bold')
-        ax.set_xlabel(x_label)
-        ax.set_ylabel('Predicted Value')
-        ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-        ax.grid(True, alpha=0.3)
-        
-        plt.tight_layout()
-        
-        filename = f"{output_dir}/model_overview_{timestamp}.png"
-        fig.savefig(filename, dpi=300, bbox_inches='tight')
-        plt.close(fig)
-        saved_files.append(filename)
-    
-    print(f"\nSuccessfully saved {len(saved_files)} visualization(s):")
-    for file in saved_files:
-        print(f"   - {file}")
-    
     return saved_files
-
-def check_saved_visualizations():
-    """Check the size and status of recently saved visualizations"""
-    viz_files = glob.glob("visualizations/*.png")
-    if not viz_files:
-        print("No visualization files found in visualizations/ directory")
-        return
-    
-    # Sort by modification time, most recent first
-    viz_files.sort(key=os.path.getmtime, reverse=True)
-    
-    print("\nRecent visualization files:")
-    print("=" * 50)
-    
-    for i, file in enumerate(viz_files[:5]):  # Show last 5 files
-        size = os.path.getsize(file)
-        mod_time = datetime.fromtimestamp(os.path.getmtime(file)).strftime('%Y-%m-%d %H:%M:%S')
-        
-        status = "Valid" if size > 1000 else "Blank/Invalid"
-        size_mb = size / (1024 * 1024)  # Convert to MB
-        
-        filename = os.path.basename(file)
-        print(f"{i+1}. {filename}")
-        print(f"   Size: {size_mb:.2f} MB ({size:,} bytes)")
-        print(f"   Modified: {mod_time}")
-        print(f"   Status: {status}")
-        print()
 
 if __name__ == "__main__":
     # Maintain original behavior for backward compatibility
-    clf_predictions, reg_predictions, other_predictions = predict_and_visualize()
+    predictor = EEGModelPredictor()
+    model_summary = predictor.load_models()
+    data_summary = predictor.load_data()
+    predictor.predict()
+    predictor.visualize_predictions(show_plots=True, save_plots=False)

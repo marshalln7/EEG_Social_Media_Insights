@@ -11,7 +11,7 @@ print("Starting EEG Model Prediction...")
 predictor = EEGModelPredictor(
     models_dir="models",
     featuresets_dir="local featuresets",
-    model_types=['concentration', 'mendeley']
+    model_types=['concentration']
 )
 
 # Load and predict
