@@ -248,10 +248,10 @@ class EEGModelPredictor:
                     for i, file in enumerate(featureset_files):
                         print(f"   {i+1}. {file}")
                 
-                # Use the first available file
-                selected_file = featureset_files[0]
+                # Use the most recent file (by modification time)
+                selected_file = max(featureset_files, key=os.path.getmtime)
                 if self.verbose:
-                    print(f"Using: {selected_file}")
+                    print(f"Auto-selecting latest file: {selected_file}")
                 
                 real_data = pd.read_csv(selected_file)
                 file_used = selected_file

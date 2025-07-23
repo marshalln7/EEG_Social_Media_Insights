@@ -38,7 +38,7 @@ print("Starting EEG Model Prediction...")
 
 # Create predictor
 predictor = EEGModelPredictor(
-    models_dir="models",
+    models_dir="models",  
     featuresets_dir="local featuresets",
     model_types=['concentration']
 )
@@ -49,12 +49,11 @@ model_info = predictor.load_models()
 print(f" Loaded {model_info['total_loaded']} models")
 
 print("Loading dataset...")
-# Specify the exact dataset file you want to use
-data_info = predictor.load_data(data_file= output_file)
+# The load_data method will automatically use the latest file when output_file is provided
+data_info = predictor.load_data(data_file=output_file)
 print(f" Loaded data: {data_info['data_shape']} from {data_info['file_used']}")
 
 print(" Making predictions...")
 predictions = predictor.predict()
-
 print(" Generating visualization graphs...")
 predictor.visualize_predictions()
