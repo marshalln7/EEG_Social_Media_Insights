@@ -21,7 +21,7 @@ import numpy as np
     # Saves the trained models with timestamps
     # Prints model performance and save locations
 start = time.time()
-dataset_name = "OldData"
+dataset_name = "concentration"
 data = pd.read_csv("featuresets/original_data_2025-07-22_17-07.csv", nrows= 500).drop(labels="Timestep", axis=1)
 X_train, X_test, y_train, y_test = train_test_split(data.drop(axis=1, labels=["Label"]), data["Label"], test_size=0.2, random_state=42)
 param_grid = {
@@ -42,54 +42,114 @@ param_grid2 = {
 }
 
 cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-# grid_search = GridSearchCV(RandomForestClassifier(random_state = 42), param_grid=param_grid, cv=cv, verbose = 4, n_jobs=-1)
-# grid_search.fit(X_train, y_train)
-grid_search2 = GridSearchCV(RandomForestRegressor(random_state = 42), param_grid=param_grid2, cv=cv, verbose = 4, n_jobs=-1)
-grid_search2.fit(X_train, y_train)
-# clf = RandomForestClassifier(**grid_search.best_params_, random_state = 42, verbose = 4, n_jobs=-1)
-# clf = clf.fit(X_train, y_train)
-reg = RandomForestRegressor(**grid_search2.best_params_, random_state=42, verbose = 4, n_jobs=-1)
-reg = reg.fit(X_train, y_train)
+grid_search = GridSearchCV(RandomForestClassifier(random_state = 42), param_grid=param_grid, cv=cv, verbose = 4, n_jobs=-1)
+grid_search.fit(X_train, y_train)
+# grid_search2 = GridSearchCV(RandomForestRegressor(random_state = 42), param_grid=param_grid2, cv=cv, verbose = 4, n_jobs=-1)
+# grid_search2.fit(X_train, y_train)
 
-# clf_predictions = clf.predict(X_test)
-reg_predictions = reg.predict(X_test)
-# clf_score = clf.score(X_test, y_test)
-reg_score = reg.score(X_test, y_test)
+clf = grid_search.best_estimator_
+# reg = grid_search2.best_estimator_
 
+clf_predictions = clf.predict(X_test)
+# reg_predictions = reg.predict(X_test)
+clf_score = clf.score(X_test, y_test)
+# reg_score = reg.score(X_test, y_test)
 
 
 
 
 
 
+# Get the GridSearchCV results
 
-results = pd.DataFrame(grid_search2.cv_results_)
-# Sort by best score
-top_n = results.sort_values(by='mean_test_score', ascending=False).head(5)
-# Make param combo more readable
-top_n['param_combo'] = top_n['params'].apply(
-    lambda d: '\n'.join([f"{k}={v}" for k, v in d.items()])
-)
-# Plot
-plt.figure(figsize=(14, 10))
-sns.barplot(
-    data=top_n, 
-    x='mean_test_score', 
-    y='param_combo', 
-    palette='viridis'
-)
-# Improve aesthetics
-plt.xlabel('Mean CV Score', fontsize=12)
-plt.ylabel('Hyperparameter Combination', fontsize=12)
-plt.title('Top 5 GridSearchCV Regressor Results', fontsize=16)
-plt.xticks(fontsize=10)
-plt.yticks(fontsize=9)
-plt.grid(axis='x', linestyle='--', alpha=0.6)
+results = pd.DataFrame(grid_search.cv_results_)
+# results = pd.DataFrame(grid_search2.cv_results_)
+# Drop rows with NaN scores (if any)
+results = results.dropna(subset=["mean_test_score"])
+
+# Create a unique, sortable param combo label
+def stringify_params(params):
+    return '\n'.join([f"{k}={v if v is not None else 'None'}" for k, v in sorted(params.items())])
+
+results['param_combo_str'] = results['params'].apply(stringify_params)
+results['param_combo_tuple'] = results['params'].apply(lambda d: tuple(sorted((k, v) for k, v in d.items())))
+
+# Best param combo
+best_param_tuple = tuple(sorted((k, v) for k, v in grid_search.best_params_.items()))
+# best_param_tuple = tuple(sorted((k, v) for k, v in grid_search2.best_params_.items()))
+
+# Flag best row
+results['is_best'] = results['param_combo_tuple'] == best_param_tuple
+
+# Sort top 10 by mean_test_score
+top_n = results.sort_values(by="mean_test_score", ascending=False).head(5).copy()
+
+# Sort top_n again for clean y-axis
+top_n = top_n.sort_values(by="mean_test_score")
+
+# Plot: Lollipop chart
+plt.figure(figsize=(15, 10))
+colors = ['crimson' if is_best else 'steelblue' for is_best in top_n['is_best']]
+
+# Lollipop stems
+plt.hlines(y=top_n['param_combo_str'], xmin=0, xmax=top_n['mean_test_score'], color=colors)
+
+# Lollipop heads
+plt.plot(top_n['mean_test_score'], top_n['param_combo_str'], "o", color='black')
+
+# Annotate with score
+for score, y in zip(top_n['mean_test_score'], top_n['param_combo_str']):
+    plt.text(score + 0.001, y, f"{score:.3f}", va='center', fontsize=20)
+
+
+
+plt.xlabel("Mean CV Score")
+plt.ylabel("Hyperparameter Combination")
+plt.title("Top 5 GridSearchCV Results (Lollipop Chart)")
+plt.grid(axis="x", linestyle="--", alpha=0.6)
+
+plt.yticks(fontsize=12)  
+
 plt.tight_layout()
-plt.rcParams['font.family'] = 'monospace'
-# Save at high resolution
-# plt.savefig("gridsearchcvolddataregressor_top5.png", dpi=300, bbox_inches='tight')
+plt.savefig("gridsearchcvolddataclassifier_lollipop_top5.png", dpi=300)
+# plt.savefig("gridsearchcvolddataregressor_lollipop_top5.png", dpi=300)
 plt.show()
+
+
+
+
+
+
+
+
+
+
+# Sort by best score
+# top_n = results.sort_values(by='mean_test_score', ascending=False).head(5)
+# # Make param combo more readable
+# top_n['param_combo'] = top_n['params'].apply(
+#     lambda d: '\n'.join([f"{k}={v}" for k, v in d.items()])
+# )
+# # Plot
+# plt.figure(figsize=(14, 10))
+# sns.barplot(
+#     data=top_n, 
+#     x='mean_test_score', 
+#     y='param_combo', 
+#     palette='viridis'
+# )
+# # Improve aesthetics
+# plt.xlabel('Mean CV Score', fontsize=12)
+# plt.ylabel('Hyperparameter Combination', fontsize=12)
+# plt.title('Top 5 GridSearchCV Regressor Results', fontsize=16)
+# plt.xticks(fontsize=10)
+# plt.yticks(fontsize=9)
+# plt.grid(axis='x', linestyle='--', alpha=0.6)
+# plt.tight_layout()
+# plt.rcParams['font.family'] = 'monospace'
+# # Save at high resolution
+# # plt.savefig("gridsearchcvolddataregressor_top5.png", dpi=300, bbox_inches='tight')
+# plt.show()
 
 
 
@@ -127,16 +187,18 @@ for param in param_names:
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
+    # plt.savefig(f"gridsearcholddataclassifier_param_{param}.png", dpi=300)
     # plt.savefig(f"gridsearcholddataregressor_param_{param}.png", dpi=300)
+
     plt.show()
     
     
     
     
-# print("Best Parameters:", grid_search.best_params_)
-print("Best Parameter Regressor:", grid_search2.best_params_)
-# print(f"Classification accuracy: {clf_score:.4f}")
-print(f"Regression R² score: {reg_score:.4f}")
+print("Best Parameters:", grid_search.best_params_)
+# print("Best Parameter Regressor:", grid_search2.best_params_)
+print(f"Classification accuracy: {clf_score:.4f}")
+# print(f"Regression R² score: {reg_score:.4f}")
 #print(confusion_matrix(y_test, clf_predictions, labels=[1, 2, 3]))
 # print(classification_report(y_test, clf_predictions, labels=[1, 2, 3]))
 time.sleep(1)

@@ -1,6 +1,6 @@
 from Cleaning_Loops_Notebook import single_file_cleaning
-from Feature_Extraction import gen_training_matrix_mendeley, gen_training_matrix_neurosense, gen_training_matrix_ogdata, gen_training_matrix_ourdata
-import Use_Trained_Model
+from Feature_Extraction import gen_training_matrix_ourdata
+from Use_Trained_Model import EEGModelPredictor
 import datetime
 
 
@@ -27,4 +27,32 @@ gen_training_matrix_ourdata(directory_path, output_file, cols_to_ignore = -1)
 
 
 
-    
+"""
+EEG Model Verification Script
+Run with: python3 verify_trained_model.py
+"""
+
+print("Starting EEG Model Prediction...")
+
+# Create predictor
+predictor = EEGModelPredictor(
+    models_dir="models",
+    featuresets_dir="local featuresets",
+    model_types=['concentration']
+)
+
+# Load and predict
+print(" Loading models...")
+model_info = predictor.load_models()
+print(f" Loaded {model_info['total_loaded']} models")
+
+print("Loading dataset...")
+# Specify the exact dataset file you want to use
+data_info = predictor.load_data(data_file="local datasets_2025-07-17_09-50.csv")
+print(f" Loaded data: {data_info['data_shape']} from {data_info['file_used']}")
+
+print(" Making predictions...")
+predictions = predictor.predict()
+
+print(" Generating visualization graphs...")
+predictor.visualize_predictions() 
