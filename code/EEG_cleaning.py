@@ -132,12 +132,5 @@ def muse_clean(filepath: str, filename: str, subject_id: str, record_id: str, ne
 
     df = df[output_columns]
 
-
-    ## Change directory to the newly outputted folder
-    os.chdir(f"../cleaned datasets/{new_folder}")
-    
-    ## Download dataset into current working directory (Mendeley)
-    df.to_csv(f"subject{subject_id}-label-{record_id}-cleaned.csv")
-
-    ## Return to the starting directory
-    os.chdir('../../code')
+    ## Download dataset into the newly created folder (default name set to "cleaned datasets")
+    df.to_csv(f"../cleaned datasets/{new_folder}/subject{subject_id}-label-{record_id}-cleaned.csv")
