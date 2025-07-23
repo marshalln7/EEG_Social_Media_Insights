@@ -76,7 +76,7 @@ def muse_clean(filepath: str, filename: str, subject_id: str, record_id: str, ne
     os.makedirs(f'../cleaned datasets/{new_folder}', exist_ok = True)
 
     ## Reading in dataset
-    df = pd.read_csv(f'{filepath}/{filename}')
+    df = pd.read_csv(fr'{filepath}/{filename}')
 
     ## Creating time-based indices using the `TimeStamp` column
     df['timestamp'] = pd.to_datetime(df['TimeStamp'], format='%Y-%m-%d %H:%M:%S.%f')
@@ -132,7 +132,8 @@ def muse_clean(filepath: str, filename: str, subject_id: str, record_id: str, ne
 
     df = df[output_columns]
 
+
     ## Download dataset into the newly created folder (default name set to "cleaned datasets")
-    df.to_csv(f"../cleaned datasets/{new_folder}/subject{subject_id}-label-{record_id}-cleaned.csv")
+    df.to_csv(f"cleaned datasets/{new_folder}/subject{subject_id}-label-{record_id}-cleaned.csv")
 
     ## Hope this works :)

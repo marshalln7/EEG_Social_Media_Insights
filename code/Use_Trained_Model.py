@@ -32,7 +32,7 @@ class EEGModelPredictor:
     - Exporting predictions to files
     """
     
-    def __init__(self, models_dir="models", featuresets_dir="featuresets", 
+    def __init__(self, models_dir="models", featuresets_dir="local featuresets", 
                  model_types=None, verbose=True):
         """
         Initialize the EEG Model Predictor

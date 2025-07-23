@@ -11,6 +11,7 @@ import warnings
 import re
 import pandas as pd
 from EEG_feature_extraction import generate_feature_vectors_from_samples
+import glob
 
 
 # In[3]:
@@ -105,9 +106,9 @@ if __name__ == '__main__':
 	date = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M')
 
 	target_dir = "NeuroSense" # Change this one to change which data we're processing
-	directory_path = "../cleaned datasets/" + target_dir
+	directory_path = "cleaned datasets/" + target_dir
 
-	output_file = f"../featuresets/{target_dir}_{date}.csv"
+	output_file = f"featuresets/{target_dir}_{date}.csv"
     
 	gen_training_matrix_neurosense(directory_path, output_file, cols_to_ignore = [5, 6])
 
@@ -280,77 +281,75 @@ if __name__ == '__main__':
 def gen_training_matrix_ourdata(directory_path, output_file, cols_to_ignore):
 	# Initialise return matrix
 	FINAL_MATRIX = None
-	
-	for x in os.listdir(directory_path):
+	# Get list of all CSV files that don't contain 'test'
+	csv_files = [f for f in glob.glob(os.path.join(directory_path, "*.csv")) if 'test' not in os.path.basename(f).lower()]
 
-		# Ignore non-CSV files
-		if not x.lower().endswith('.csv'):
-			continue
+	# If no CSV files found
+	if not csv_files:
+		print("No valid CSV files found.")
+		sys.exit(-1)
+
+	# Find the most recently modified CSV file
+	most_recent_file = max(csv_files, key=os.path.getmtime)
+	x = os.path.basename(most_recent_file)
+
+	# for x in os.listdir(directory_path):
+
+	# 	# Ignore non-CSV files
+	# 	if not x.lower().endswith('.csv'):
+	# 		continue
 		
-		# For safety we'll ignore files containing the substring "test". 
-		# [Test files should not be in the dataset directory in the first place]
-		if 'test' in x.lower():
-			continue
-		try:
-			name, state, _, _ = x[:-4].split('-')
-		except:
-			print ('Wrong file name', x)
-			sys.exit(-1)
-		if state.lower() == 'Marshall':
-			state = 2.
-		elif state.lower() == 'label':
-			state = 1.
-		elif state.lower() == 'Kenzo':
-			state = 0.
-		else:
-			print ('Wrong file name', x)
-			sys.exit(-1)
+	# 	# For safety we'll ignore files containing the substring "test". 
+	# 	# [Test files should not be in the dataset directory in the first place]
+	# 	if 'test' in x.lower():
+	# 		continue
+	try:
+		name, state, _, _ = x[:-4].split('-')
+	except:
+		print ('Wrong file name', x)
+		sys.exit(-1)
+	if state.lower() == 'Marshall':
+		state = 2.
+	elif state.lower() == 'label':
+		state = 1.
+	elif state.lower() == 'Kenzo':
+		state = 0.
+	else:
+		print ('Wrong file name', x)
+		sys.exit(-1)
 			
-		print ('Using file', x)
-		full_file_path = directory_path  +   '/'   + x
-		vectors, header = generate_feature_vectors_from_samples(file_path = full_file_path, 
+	print ('Using file', x)
+	full_file_path = directory_path  +   '/'   + x
+	vectors, header = generate_feature_vectors_from_samples(file_path = full_file_path, 
 														        nsamples = 150, 
 																period = 1.,
 																state = state,
 														        remove_redundant = True,
 																cols_to_ignore = cols_to_ignore)
 		
-		print ('resulting vector shape for the file', vectors.shape)
+	print ('resulting vector shape for the file', vectors.shape)
 		
 		
-		if FINAL_MATRIX is None:
-			FINAL_MATRIX = vectors
-		else:
-			FINAL_MATRIX = np.vstack( [ FINAL_MATRIX, vectors ] )
+	if FINAL_MATRIX is None:
+		FINAL_MATRIX = vectors
+	else:
+		FINAL_MATRIX = np.vstack( [ FINAL_MATRIX, vectors ] )
 
 	print ('FINAL_MATRIX', FINAL_MATRIX.shape)
 	
 	# Shuffle rows
-	# np.random.shuffle(FINAL_MATRIX)
+	np.random.shuffle(FINAL_MATRIX)
 	
 	# Save to file
 	np.savetxt(output_file, FINAL_MATRIX, delimiter = ',',
 			header = ','.join(header), 
 			comments = '')
+	print("Saving to:", output_file)
 
 	return None
 
 
-if __name__ == '__main__':
-	
-	
-	# if len(sys.argv) < 3: # For use in calling the function from the command line
-	# 	print ('arg1: input dir\narg2: output file')
-	# 	sys.exit(-1)
 
-	date = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M')
-
-	target_dir = "local datasets" # Change this one to change which data we're processing
-	directory_path = "../cleaned datasets/" + target_dir
-
-	output_file = f"../local featuresets/{target_dir}_{date}.csv"
-    
-	gen_training_matrix_ourdata(directory_path, output_file, cols_to_ignore = -1)
 
 
 # In[6]:

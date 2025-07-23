@@ -25,7 +25,7 @@ from EEG_cleaning import muse_clean
 
 # In[2]:
 
-def single_file_cleaning(filename,subject_id,record_id):
+def single_file_cleaning(filename:str,subject_id:str,record_id:str):
     """
     This function is used to clean a single file, and is useful for testing the cleaning function.
     """

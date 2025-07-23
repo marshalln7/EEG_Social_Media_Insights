@@ -1,8 +1,9 @@
 from Cleaning_Loops_Notebook import single_file_cleaning
 from Feature_Extraction import gen_training_matrix_ourdata
 from Use_Trained_Model import EEGModelPredictor
+from EEG_cleaning import muse_clean
+import os
 import datetime
-
 
 
 # Execute the cleaning loop on our data
@@ -10,20 +11,21 @@ import datetime
 filename = input("Enter the filename to clean: ")
 subject_id = input("Enter the subject ID: ")
 record_id = input("Enter the record ID (which procedure): ")
+
 single_file_cleaning(filename, subject_id, record_id)
 
 
 
-
-#Execute feature extraction on our data
+# Execute feature extraction on our data
 date = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M')
 
 target_dir = "local datasets" 
 directory_path = "cleaned datasets/" + target_dir
 
-output_file = f"featuresets/{target_dir}_{date}.csv"
+
+output_file = os.path.join("local featuresets", f"{target_dir}_{date}.csv")
     
-gen_training_matrix_ourdata(directory_path, output_file, cols_to_ignore = -1)
+gen_training_matrix_ourdata(directory_path, output_file, cols_to_ignore = [5,6,7,8,9])
 
 
 
@@ -55,4 +57,4 @@ print(" Making predictions...")
 predictions = predictor.predict()
 
 print(" Generating visualization graphs...")
-predictor.visualize_predictions() 
+predictor.visualize_predictions()
