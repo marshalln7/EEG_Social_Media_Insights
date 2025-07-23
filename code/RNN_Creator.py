@@ -86,6 +86,8 @@ def make_me_a_classifying_RNN_please(filepath: str, label_col: str | int, drop_l
     for col in drop_list:
       if col not in columns:
         return print("Specified column(s) to drop are missing, make sure all columns inputted are valid")
+      else:
+        columns.remove(col)
       
     data.drop(drop_list, axis = 1)
       
