@@ -19,9 +19,9 @@ single_file_cleaning(filename, subject_id, record_id)
 date = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M')
 
 target_dir = "local datasets" 
-directory_path = "../cleaned datasets/" + target_dir
+directory_path = "cleaned datasets/" + target_dir
 
-output_file = f"../featuresets/{target_dir}_{date}.csv"
+output_file = f"featuresets/{target_dir}_{date}.csv"
     
 gen_training_matrix_ourdata(directory_path, output_file, cols_to_ignore = -1)
 
@@ -48,7 +48,7 @@ print(f" Loaded {model_info['total_loaded']} models")
 
 print("Loading dataset...")
 # Specify the exact dataset file you want to use
-data_info = predictor.load_data(data_file="local datasets_2025-07-17_09-50.csv")
+data_info = predictor.load_data(data_file= output_file)
 print(f" Loaded data: {data_info['data_shape']} from {data_info['file_used']}")
 
 print(" Making predictions...")

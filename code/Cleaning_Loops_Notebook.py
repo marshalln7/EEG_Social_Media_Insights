@@ -29,7 +29,7 @@ def single_file_cleaning(filename,subject_id,record_id):
     """
     This function is used to clean a single file, and is useful for testing the cleaning function.
     """
-    filepath = '../raw datasets/Local Recordings'
+    filepath = 'raw datasets/Local Recordings'
   
 
     muse_clean(filepath, filename, subject_id, record_id, new_folder='local datasets')
@@ -45,7 +45,7 @@ def mendeley_cleaning_loop():
     This function cleans all files in the Mendeley dataset.
     """
     # Define the folder list for Mendeley dataset
-    folder_list = ['../raw datasets/Mendeley/' + folder for folder in os.listdir('../raw datasets/Mendeley/')]
+    folder_list = ['raw datasets/Mendeley/' + folder for folder in os.listdir('raw datasets/Mendeley/')]
 
     for patient in range(1, 6):
 
