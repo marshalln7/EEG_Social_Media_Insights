@@ -348,7 +348,7 @@ if __name__ == '__main__':
 	target_dir = "local datasets" # Change this one to change which data we're processing
 	directory_path = "../cleaned datasets/" + target_dir
 
-	output_file = f"../featuresets/{target_dir}_{date}.csv"
+	output_file = f"../local featuresets/{target_dir}_{date}.csv"
     
 	gen_training_matrix_ourdata(directory_path, output_file, cols_to_ignore = -1)
 
