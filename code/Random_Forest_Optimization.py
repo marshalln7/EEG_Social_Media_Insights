@@ -11,7 +11,6 @@ from sklearn.model_selection import GridSearchCV, StratifiedKFold
 import datetime
 import matplotlib.pyplot as plt
 import seaborn as sns
-from pandas.plotting import parallel_coordinates
 import numpy as np
 # Purpose: Training only
 # What it does:
@@ -22,8 +21,8 @@ import numpy as np
     # Saves the trained models with timestamps
     # Prints model performance and save locations
 start = time.time()
-dataset_name = "Mendeley"
-data = pd.read_csv("featuresets/Mendeley cleaned_2025-07-22_17-04.csv", nrows= 500).drop(labels="Timestep", axis=1)
+dataset_name = "OldData"
+data = pd.read_csv("featuresets/original_data_2025-07-22_17-07.csv", nrows= 500).drop(labels="Timestep", axis=1)
 X_train, X_test, y_train, y_test = train_test_split(data.drop(axis=1, labels=["Label"]), data["Label"], test_size=0.2, random_state=42)
 param_grid = {
     'n_estimators': [50, 100, 200],
@@ -41,30 +40,30 @@ param_grid2 = {
     'bootstrap': [True, False],
     'criterion': ['squared_error', 'absolute_error', 'poisson']
 }
-#Best Parameters: {'bootstrap': False, 'criterion': 'entropy', 'max_depth': 10, 'min_samples_leaf': 1, 'min_samples_split': 5, 'n_estimators': 100}
+
 cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-grid_search = GridSearchCV(RandomForestClassifier(random_state = 42), param_grid=param_grid, cv=cv, verbose = 4, n_jobs=-1)
-grid_search.fit(X_train, y_train)
-# grid_search2 = GridSearchCV(RandomForestRegressor(random_state = 42), param_grid=param_grid2, cv=cv, verbose = 4, n_jobs=-1)
-# grid_search2.fit(X_train, y_train)
-clf = RandomForestClassifier(**grid_search.best_params_, random_state = 42, verbose = 4, n_jobs=-1)
-clf = clf.fit(X_train, y_train)
-# reg = RandomForestRegressor(**grid_search2.best_params_, random_state=42, verbose = 4, n_jobs=-1)
-# reg = reg.fit(X_train, y_train)
+# grid_search = GridSearchCV(RandomForestClassifier(random_state = 42), param_grid=param_grid, cv=cv, verbose = 4, n_jobs=-1)
+# grid_search.fit(X_train, y_train)
+grid_search2 = GridSearchCV(RandomForestRegressor(random_state = 42), param_grid=param_grid2, cv=cv, verbose = 4, n_jobs=-1)
+grid_search2.fit(X_train, y_train)
+# clf = RandomForestClassifier(**grid_search.best_params_, random_state = 42, verbose = 4, n_jobs=-1)
+# clf = clf.fit(X_train, y_train)
+reg = RandomForestRegressor(**grid_search2.best_params_, random_state=42, verbose = 4, n_jobs=-1)
+reg = reg.fit(X_train, y_train)
 
-clf_predictions = clf.predict(X_test)
-# reg_predictions = reg.predict(X_test)
-clf_score = clf.score(X_test, y_test)
-# reg_score = reg.score(X_test, y_test)
-
-
+# clf_predictions = clf.predict(X_test)
+reg_predictions = reg.predict(X_test)
+# clf_score = clf.score(X_test, y_test)
+reg_score = reg.score(X_test, y_test)
 
 
 
 
 
 
-results = pd.DataFrame(grid_search.cv_results_)
+
+
+results = pd.DataFrame(grid_search2.cv_results_)
 # Sort by best score
 top_n = results.sort_values(by='mean_test_score', ascending=False).head(5)
 # Make param combo more readable
@@ -82,14 +81,14 @@ sns.barplot(
 # Improve aesthetics
 plt.xlabel('Mean CV Score', fontsize=12)
 plt.ylabel('Hyperparameter Combination', fontsize=12)
-plt.title('Top 5 GridSearchCV Results', fontsize=16)
+plt.title('Top 5 GridSearchCV Regressor Results', fontsize=16)
 plt.xticks(fontsize=10)
 plt.yticks(fontsize=9)
 plt.grid(axis='x', linestyle='--', alpha=0.6)
 plt.tight_layout()
 plt.rcParams['font.family'] = 'monospace'
 # Save at high resolution
-plt.savefig("gridsearchcvmendeley_top10.png", dpi=300, bbox_inches='tight')
+# plt.savefig("gridsearchcvolddataregressor_top5.png", dpi=300, bbox_inches='tight')
 plt.show()
 
 
@@ -128,16 +127,16 @@ for param in param_names:
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig(f"gridsearchmendeley_param_{param}.png", dpi=300)
+    # plt.savefig(f"gridsearcholddataregressor_param_{param}.png", dpi=300)
     plt.show()
     
     
     
     
-print("Best Parameters:", grid_search.best_params_)
-# print("Best Parameter Regressor:", grid_search2.best_params_)
-print(f"Classification accuracy: {clf_score:.4f}")
-# print(f"Regression R² score: {reg_score:.4f}")
+# print("Best Parameters:", grid_search.best_params_)
+print("Best Parameter Regressor:", grid_search2.best_params_)
+# print(f"Classification accuracy: {clf_score:.4f}")
+print(f"Regression R² score: {reg_score:.4f}")
 #print(confusion_matrix(y_test, clf_predictions, labels=[1, 2, 3]))
 # print(classification_report(y_test, clf_predictions, labels=[1, 2, 3]))
 time.sleep(1)
@@ -145,10 +144,10 @@ end = time.time()
 print(f"Time taken: {end - start:.2f} seconds")
 
 # Save the trained model
-today = datetime.datetime.now()
-datetime_str = today.strftime("%Y-%m-%d_%H-%M")
+# today = datetime.datetime.now()
+# datetime_str = today.strftime("%Y-%m-%d_%H-%M")
 # joblib.dump(reg, f'models/{dataset_name}_rf_reg_model_{datetime_str}.pkl')
-joblib.dump(clf, f'models/{dataset_name}_rf_clf_model_{datetime_str}.pkl')
-print(f"Models saved:")
-# print(f"  - models/Mendeley_rf_reg_model_{datetime_str}.pkl")
-print(f"  - models/Mendeley_rf_clf_model_{datetime_str}.pkl")
+# # joblib.dump(clf, f'models/{dataset_name}_rf_clf_model_{datetime_str}.pkl')
+# print(f"Models saved:")
+# print(f"  - models/concentration_rf_reg_model_{datetime_str}.pkl")
+# print(f"  - models/concentration_rf_clf_model_{datetime_str}.pkl")
