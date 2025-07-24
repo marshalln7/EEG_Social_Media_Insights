@@ -22,7 +22,7 @@ import numpy as np
     # Prints model performance and save locations
 start = time.time()
 dataset_name = "emotion"
-data = pd.read_csv(r"featuresets\Kaggle_Emotions_Dataset\emotions.csv", nrows= 500).drop(labels="Timestep", axis=1)
+data = pd.read_csv(r"emotions.csv", nrows= 500).drop(labels="Timestep", axis=1)
 X_train, X_test, y_train, y_test = train_test_split(data.drop(axis=1, labels=["Label"]), data["Label"], test_size=0.2, random_state=42)
 param_grid = {
     'n_estimators': [50, 100, 200],
