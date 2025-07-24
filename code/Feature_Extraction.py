@@ -338,7 +338,7 @@ def gen_training_matrix_ourdata(directory_path, output_file, cols_to_ignore):
 	print ('FINAL_MATRIX', FINAL_MATRIX.shape)
 	
 	# Shuffle rows
-	np.random.shuffle(FINAL_MATRIX)
+	# np.random.shuffle(FINAL_MATRIX)
 	
 	# Save to file
 	np.savetxt(output_file, FINAL_MATRIX, delimiter = ',',
