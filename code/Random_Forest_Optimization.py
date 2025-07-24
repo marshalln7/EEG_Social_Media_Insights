@@ -21,8 +21,8 @@ import numpy as np
     # Saves the trained models with timestamps
     # Prints model performance and save locations
 start = time.time()
-dataset_name = "concentration"
-data = pd.read_csv("featuresets/original_data_2025-07-22_17-07.csv", nrows= 500).drop(labels="Timestep", axis=1)
+dataset_name = "emotion"
+data = pd.read_csv(r"emotions.csv", nrows= 500).drop(labels="Timestep", axis=1)
 X_train, X_test, y_train, y_test = train_test_split(data.drop(axis=1, labels=["Label"]), data["Label"], test_size=0.2, random_state=42)
 param_grid = {
     'n_estimators': [50, 100, 200],
@@ -105,13 +105,13 @@ for score, y in zip(top_n['mean_test_score'], top_n['param_combo_str']):
 
 plt.xlabel("Mean CV Score")
 plt.ylabel("Hyperparameter Combination")
-plt.title("Top 5 GridSearchCV Results (Lollipop Chart)")
+plt.title("Top 5 GridSearchCV Results")
 plt.grid(axis="x", linestyle="--", alpha=0.6)
 
 plt.yticks(fontsize=12)  
 
 plt.tight_layout()
-plt.savefig("gridsearchcvolddataclassifier_lollipop_top5.png", dpi=300)
+plt.savefig("gridsearchcvemotionclassifier_lollipop_top5.png", dpi=300)
 # plt.savefig("gridsearchcvolddataregressor_lollipop_top5.png", dpi=300)
 plt.show()
 
@@ -187,7 +187,7 @@ for param in param_names:
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
-    # plt.savefig(f"gridsearcholddataclassifier_param_{param}.png", dpi=300)
+    plt.savefig(f"gridsearchemotionclassifier_param_{param}.png", dpi=300)
     # plt.savefig(f"gridsearcholddataregressor_param_{param}.png", dpi=300)
 
     plt.show()
@@ -206,10 +206,10 @@ end = time.time()
 print(f"Time taken: {end - start:.2f} seconds")
 
 # Save the trained model
-# today = datetime.datetime.now()
-# datetime_str = today.strftime("%Y-%m-%d_%H-%M")
+today = datetime.datetime.now()
+datetime_str = today.strftime("%Y-%m-%d_%H-%M")
 # joblib.dump(reg, f'models/{dataset_name}_rf_reg_model_{datetime_str}.pkl')
-# # joblib.dump(clf, f'models/{dataset_name}_rf_clf_model_{datetime_str}.pkl')
-# print(f"Models saved:")
-# print(f"  - models/concentration_rf_reg_model_{datetime_str}.pkl")
-# print(f"  - models/concentration_rf_clf_model_{datetime_str}.pkl")
+joblib.dump(clf, f'models/{dataset_name}_rf_clf_model_{datetime_str}.pkl')
+print(f"Models saved:")
+# print(f"  - models/emotion_rf_reg_model_{datetime_str}.pkl")
+print(f"  - models/emotion_rf_clf_model_{datetime_str}.pkl")
