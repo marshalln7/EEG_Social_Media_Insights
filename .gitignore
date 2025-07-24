@@ -10,7 +10,7 @@ featuresets/*
 
 # Un-ignore the folder (so git can recurse into it)
 !featuresets/
-!Kaggle_Emotions_Dataset/
+!featuresets/Kaggle_Emotions_Dataset/
 
 # Un-ignore specific files
 !featuresets/Mendeley cleaned_2025-07-22_17-04.zip
