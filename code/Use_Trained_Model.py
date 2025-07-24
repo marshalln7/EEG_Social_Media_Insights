@@ -633,25 +633,64 @@ def batch_predict(models_list, data_files_list, output_dir="results", visualize_
 
 def create_simple_visualizations(all_reg_predictions, all_clf_predictions, all_other_predictions, 
                                reg_model_names, clf_model_names, other_model_names, timestep=None):
-    """Create concentration-focused visualizations - overview and separate regression/classification plots"""
+    """Create model-specific visualizations - automatically detects model type and uses appropriate scales"""
     
     # Set a clean style
     plt.style.use('default')
     if HAS_SEABORN:
         sns.set_palette("husl")
     
-    # Create the overview plot
-    if all_reg_predictions or all_clf_predictions:
-        create_concentration_overview_plot(all_reg_predictions, all_clf_predictions, 
-                                         reg_model_names, clf_model_names, timestep)
+    # Detect model types from filenames
+    model_types = set()
+    all_model_names = reg_model_names + clf_model_names + other_model_names
     
-    # Create separate regression plot
-    if all_reg_predictions:
-        create_concentration_regression_plot(all_reg_predictions, reg_model_names, timestep)
+    for model_name in all_model_names:
+        filename = os.path.basename(model_name).lower()
+        if "concentration" in filename:
+            model_types.add("concentration")
+        elif "mendeley" in filename:
+            model_types.add("mendeley")
+        elif "neurosense" in filename:
+            model_types.add("neurosense")
     
-    # Create separate classification plot
-    if all_clf_predictions:
-        create_concentration_classification_plot(all_clf_predictions, clf_model_names, timestep)
+    # Create visualizations based on detected model types
+    if "concentration" in model_types:
+        # Create concentration-specific visualizations
+        conc_reg_preds = [pred for pred, name in zip(all_reg_predictions, reg_model_names) 
+                         if "concentration" in os.path.basename(name).lower()]
+        conc_clf_preds = [pred for pred, name in zip(all_clf_predictions, clf_model_names) 
+                         if "concentration" in os.path.basename(name).lower()]
+        conc_reg_names = [name for name in reg_model_names 
+                         if "concentration" in os.path.basename(name).lower()]
+        conc_clf_names = [name for name in clf_model_names 
+                         if "concentration" in os.path.basename(name).lower()]
+        
+        if conc_reg_preds or conc_clf_preds:
+            create_concentration_overview_plot(conc_reg_preds, conc_clf_preds, 
+                                             conc_reg_names, conc_clf_names, timestep)
+        if conc_reg_preds:
+            create_concentration_regression_plot(conc_reg_preds, conc_reg_names, timestep)
+        if conc_clf_preds:
+            create_concentration_classification_plot(conc_clf_preds, conc_clf_names, timestep)
+    
+    if "mendeley" in model_types:
+        # Create mendeley-specific visualizations
+        mend_reg_preds = [pred for pred, name in zip(all_reg_predictions, reg_model_names) 
+                         if "mendeley" in os.path.basename(name).lower()]
+        mend_clf_preds = [pred for pred, name in zip(all_clf_predictions, clf_model_names) 
+                         if "mendeley" in os.path.basename(name).lower()]
+        mend_reg_names = [name for name in reg_model_names 
+                         if "mendeley" in os.path.basename(name).lower()]
+        mend_clf_names = [name for name in clf_model_names 
+                         if "mendeley" in os.path.basename(name).lower()]
+        
+        if mend_reg_preds or mend_clf_preds:
+            create_mendeley_overview_plot(mend_reg_preds, mend_clf_preds, 
+                                        mend_reg_names, mend_clf_names, timestep)
+        if mend_reg_preds:
+            create_mendeley_regression_plot(mend_reg_preds, mend_reg_names, timestep)
+        if mend_clf_preds:
+            create_mendeley_classification_plot(mend_clf_preds, mend_clf_names, timestep)
 
 def create_improved_regression_plots(all_reg_predictions, reg_model_names, timestep=None):
     """Create improved regression plots with consistent scaling and better visualization for concentration models"""
@@ -1826,6 +1865,613 @@ def create_concentration_classification_plot(all_clf_predictions, clf_model_name
     plt.suptitle(f'EEG Concentration Classification Models Analysis - {len(all_clf_predictions)} Models (Muse Headset)', 
                 fontsize=18, fontweight='bold')
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    plt.show()
+
+# Mendeley-specific visualization functions
+
+def create_mendeley_overview_plot(all_reg_predictions, all_clf_predictions, reg_model_names, clf_model_names, timestep=None):
+    """Create the main Mendeley overview plot similar to concentration but with Mendeley-specific scales"""
+    
+    if not all_reg_predictions and not all_clf_predictions:
+        print("No Mendeley models to visualize")
+        return
+    
+    # Create the 2x2 subplot layout
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(20, 12))
+    
+    # Prepare x-axis with better labeling
+    if timestep is not None and len(timestep) > 0:
+        x_axis = timestep
+        x_label = 'Time (seconds from EEG recording start)'
+    else:
+        # Use the longest prediction array for x-axis
+        if all_reg_predictions and all_clf_predictions:
+            max_len = max(len(all_reg_predictions[0]), len(all_clf_predictions[0]))
+        elif all_reg_predictions:
+            max_len = len(all_reg_predictions[0])
+        else:
+            max_len = len(all_clf_predictions[0])
+        x_axis = np.arange(max_len)
+        x_label = 'Time (seconds from EEG recording start)'
+    
+    # Downsample if needed
+    if len(x_axis) > 500:
+        step = len(x_axis) // 250
+        x_axis_sampled = x_axis[::step]
+    else:
+        step = 1
+        x_axis_sampled = x_axis
+    
+    # TOP LEFT: Plot regression models
+    if all_reg_predictions:
+        # Use distinct colors
+        distinct_colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4']
+        colors = distinct_colors[:len(all_reg_predictions)]
+        
+        for i, (predictions, model_name) in enumerate(zip(all_reg_predictions, reg_model_names)):
+            predictions_sampled = predictions[::step]
+            short_name = os.path.basename(model_name).replace('.pkl', '')
+            if len(short_name) > 12:
+                short_name = short_name[:9] + "..."
+            label = f"R{i+1}: {short_name}"
+            ax1.plot(x_axis_sampled, predictions_sampled, label=label, color=colors[i % len(colors)], 
+                    linewidth=3, alpha=0.9)
+        
+        ax1.set_title('EEG Mendeley Regression Models - Temporal Predictions', fontsize=14, fontweight='bold')
+        ax1.set_xlabel(x_label, fontsize=10)
+        ax1.set_ylabel('Mendeley Activity Type', fontsize=10)
+        ax1.set_ylim(0.9, 3.1)  # Fixed scale for Mendeley
+        
+        # Set y-axis ticks and labels for Mendeley types
+        ax1.set_yticks([1, 2, 3])
+        ax1.set_yticklabels(['Social Media (1)', 'Cognitive Test (2)', 'Combined (3)'], fontsize=9)
+        
+        # Add reference lines for Mendeley types
+        ax1.axhline(y=1, color='blue', linestyle='--', alpha=0.5, linewidth=1)
+        ax1.axhline(y=2, color='green', linestyle='--', alpha=0.5, linewidth=1)
+        ax1.axhline(y=3, color='purple', linestyle='--', alpha=0.5, linewidth=1)
+        
+        ax1.legend(loc='upper right', fontsize=10, framealpha=0.95)
+        ax1.grid(True, alpha=0.4, linestyle='--')
+        ax1.set_facecolor('#f8f9fa')
+    else:
+        ax1.text(0.5, 0.5, 'No Regression Models', ha='center', va='center', transform=ax1.transAxes, fontsize=16)
+        ax1.set_title('EEG Mendeley Regression Models - Temporal Predictions', fontsize=14, fontweight='bold')
+    
+    # TOP RIGHT: Plot classification models
+    if all_clf_predictions:
+        # Use same x-axis setup
+        for i, (predictions, model_name) in enumerate(zip(all_clf_predictions, clf_model_names)):
+            predictions_sampled = predictions[::step]
+            short_name = os.path.basename(model_name).replace('.pkl', '')
+            if len(short_name) > 12:
+                short_name = short_name[:9] + "..."
+            label = f"C{i+1}: {short_name}"
+            ax2.step(x_axis_sampled, predictions_sampled, where='mid', label=label, color='#E74C3C', 
+                    linewidth=3, alpha=0.9)
+        
+        ax2.set_title('EEG Mendeley Classification Models - Temporal Class Predictions', fontsize=14, fontweight='bold')
+        ax2.set_xlabel(x_label, fontsize=10)
+        ax2.set_ylabel('Mendeley Activity Type', fontsize=10)
+        ax2.set_ylim(0.9, 3.1)  # Fixed scale for Mendeley
+        
+        # Set y-axis ticks and labels for Mendeley types
+        ax2.set_yticks([1, 2, 3])
+        ax2.set_yticklabels(['Social Media (1)', 'Cognitive Test (2)', 'Combined (3)'], fontsize=9)
+        
+        # Add reference lines for Mendeley types
+        ax2.axhline(y=1, color='blue', linestyle='--', alpha=0.5, linewidth=1)
+        ax2.axhline(y=2, color='green', linestyle='--', alpha=0.5, linewidth=1)
+        ax2.axhline(y=3, color='purple', linestyle='--', alpha=0.5, linewidth=1)
+        
+        ax2.legend(loc='upper right', fontsize=10, framealpha=0.95)
+        ax2.grid(True, alpha=0.4, linestyle='--')
+        ax2.set_facecolor('#f8f9fa')
+    else:
+        ax2.text(0.5, 0.5, 'No Classification Models', ha='center', va='center', transform=ax2.transAxes, fontsize=16)
+        ax2.set_title('EEG Mendeley Classification Models - Temporal Class Predictions', fontsize=14, fontweight='bold')
+    
+    # BOTTOM LEFT: Classification frequency bar chart
+    if all_clf_predictions:
+        # Always show all Mendeley types (1, 2, 3) even if frequency is 0
+        all_classes = [1, 2, 3]  # Fixed Mendeley types
+        
+        x_pos = np.arange(len(all_classes))
+        width = 0.8 / len(all_clf_predictions)
+        
+        # Find max frequency for label positioning
+        max_freq = 0
+        for predictions in all_clf_predictions:
+            for class_val in all_classes:
+                freq = np.sum(predictions == class_val)
+                max_freq = max(max_freq, freq)
+        
+        for i, (predictions, model_name) in enumerate(zip(all_clf_predictions, clf_model_names)):
+            frequencies = [np.sum(predictions == class_val) for class_val in all_classes]
+            offset = (i - len(all_clf_predictions)/2 + 0.5) * width
+            
+            short_name = os.path.basename(model_name).replace('.pkl', '')
+            if len(short_name) > 8:
+                short_name = short_name[:5] + "..."
+            
+            bars = ax3.bar(x_pos + offset, frequencies, width, 
+                          label=f'C{i+1}: {short_name}', alpha=0.8,
+                          edgecolor='black', linewidth=1)
+            
+            # Add frequency labels on bars
+            for bar, freq in zip(bars, frequencies):
+                if freq > 0:
+                    ax3.text(bar.get_x() + bar.get_width()/2., bar.get_height() + max_freq*0.01,
+                            f'{freq}', ha='center', va='bottom', fontsize=9, fontweight='bold')
+        
+        ax3.set_xlabel('Mendeley Activity Type Categories', fontsize=11)
+        ax3.set_ylabel('Frequency Count (Number of Predictions)', fontsize=11)
+        ax3.set_title('EEG Mendeley Classification Models - Activity Type Frequency Distribution', 
+                     fontweight='bold', fontsize=14)
+        ax3.set_xticks(x_pos)
+        
+        # Create Mendeley type labels
+        class_labels = ["Social Media (1)", "Cognitive Test (2)", "Combined (3)"]
+        ax3.set_xticklabels(class_labels, fontsize=10)
+        ax3.legend(fontsize=9, loc='upper right', framealpha=0.9)
+        ax3.grid(True, alpha=0.4, linestyle='--')
+        ax3.set_facecolor('#fafafa')
+    else:
+        ax3.text(0.5, 0.5, 'No Classification Models', ha='center', va='center', transform=ax3.transAxes, fontsize=16)
+        ax3.set_title('EEG Mendeley Classification - Activity Type Frequency', fontsize=14, fontweight='bold')
+    
+    # BOTTOM RIGHT: Summary statistics or model comparison
+    if len(all_clf_predictions) == 1:
+        # Single model - show class distribution pie chart
+        predictions = all_clf_predictions[0]
+        class_counts = {}
+        for class_val in [1, 2, 3]:
+            count = np.sum(predictions == class_val)
+            if count > 0:
+                class_counts[class_val] = count
+        
+        if class_counts:
+            labels = []
+            for c in class_counts.keys():
+                if c == 1:
+                    labels.append("Social Media (1)")
+                elif c == 2:
+                    labels.append("Cognitive Test (2)")
+                elif c == 3:
+                    labels.append("Combined (3)")
+            
+            sizes = list(class_counts.values())
+            colors = ['#3498DB', '#2ECC71', '#9B59B6']  # Blue, Green, Purple
+            
+            ax4.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', startangle=90)
+            ax4.set_title('Mendeley Activity Type Distribution', fontsize=14, fontweight='bold')
+        else:
+            ax4.text(0.5, 0.5, 'No Valid Classifications', ha='center', va='center', 
+                    transform=ax4.transAxes, fontsize=14)
+    else:
+        # Multiple models - show comparison summary
+        ax4.text(0.5, 0.5, f'Multiple Mendeley Models\n({len(all_clf_predictions)} total)\nSee frequency bars above', 
+                ha='center', va='center', transform=ax4.transAxes, fontsize=14, fontweight='bold')
+        ax4.set_title('Multiple Mendeley Models Summary', fontsize=14, fontweight='bold')
+    
+    plt.suptitle(f'EEG Mendeley Activity Type Models Analysis - {len(all_clf_predictions)} Models (Muse Headset)', 
+                fontsize=18, fontweight='bold')
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    plt.show()
+
+def create_mendeley_regression_plot(all_reg_predictions, reg_model_names, timestep=None):
+    """Create improved regression plots with Mendeley-specific scaling and visualization"""
+    
+    if not all_reg_predictions:
+        return
+    
+    # Set fixed scale for Mendeley models (1=Social Media, 2=Cognitive Test, 3=Combined)
+    y_lim = (0.9, 3.1)  # Fixed scale with small margin
+    
+    # Prepare x-axis with more descriptive labeling
+    if timestep is not None and len(timestep) > 0:
+        x_axis = timestep
+        x_label = 'Time (seconds from EEG recording start)'
+    else:
+        x_axis = np.arange(len(all_reg_predictions[0]))
+        x_label = 'EEG Sample Index (chronological order)'
+    
+    # Create figure with multiple subplots
+    n_models = len(all_reg_predictions)
+    if n_models == 1:
+        fig, axes = plt.subplots(1, 2, figsize=(16, 6))
+        axes = [axes]
+    else:
+        # Create a grid layout: time series on top, boxplot below
+        fig = plt.figure(figsize=(20, 10))
+        
+        # Top row: Individual time series plots (same scale)
+        gs = fig.add_gridspec(2, n_models, height_ratios=[2, 1], hspace=0.3, wspace=0.3)
+        
+        # Use distinct colors for better differentiation
+        distinct_colors = ['#3498DB', '#2ECC71', '#9B59B6', '#E67E22', '#E74C3C', '#1ABC9C', '#F39C12', '#34495E']
+        colors = distinct_colors[:n_models] if n_models <= len(distinct_colors) else plt.cm.tab10(np.linspace(0, 1, n_models))
+        
+        # Individual time series plots with same scale
+        for i, (predictions, model_name) in enumerate(zip(all_reg_predictions, reg_model_names)):
+            ax = fig.add_subplot(gs[0, i])
+            
+            # Downsample for cleaner visualization if needed
+            if len(x_axis) > 1000:
+                step = len(x_axis) // 500
+                x_sampled = x_axis[::step]
+                pred_sampled = predictions[::step]
+            else:
+                x_sampled = x_axis
+                pred_sampled = predictions
+            
+            ax.plot(x_sampled, pred_sampled, linewidth=3, alpha=0.9, 
+                   color=colors[i])
+            
+            # Create more descriptive, cleaner titles for Mendeley models
+            short_name = os.path.basename(model_name).replace(".pkl", "")
+            model_type = "Social Media Analysis"
+            
+            # Truncate very long names and add line breaks if needed
+            if len(short_name) > 15:
+                display_name = short_name[:12] + "..."
+            else:
+                display_name = short_name.replace("_", " ")
+            
+            ax.set_title(f'{model_type} Model {i+1}\n{display_name}', fontweight='bold', fontsize=10)
+            
+            ax.set_xlabel(x_label, fontsize=9)
+            ax.set_ylabel('Activity Type', fontsize=9)
+            ax.set_ylim(y_lim)  # Fixed scale for Mendeley
+            
+            # Set y-axis ticks and labels for Mendeley types
+            ax.set_yticks([1, 2, 3])
+            ax.set_yticklabels(['Social Media (1)', 'Cognitive Test (2)', 'Combined (3)'], fontsize=8)
+            
+            ax.grid(True, alpha=0.4, linestyle='--')
+            ax.set_facecolor('#f8f9fa')
+            
+            # Add horizontal reference lines for Mendeley types
+            ax.axhline(y=1, color='blue', linestyle='--', alpha=0.5, linewidth=1)
+            ax.axhline(y=2, color='green', linestyle='--', alpha=0.5, linewidth=1) 
+            ax.axhline(y=3, color='purple', linestyle='--', alpha=0.5, linewidth=1)
+        
+        # Bottom: Boxplot comparison
+        ax_box = fig.add_subplot(gs[1, :])
+        box_data = all_reg_predictions
+        # Create shorter labels for boxplots
+        box_labels = [f'M{i+1}' for i in range(n_models)]
+        
+        bp = ax_box.boxplot(box_data, labels=box_labels, patch_artist=True, 
+                           showmeans=True, meanline=True)
+        
+        # Use more distinct colors for better differentiation
+        colors = distinct_colors[:n_models] if n_models <= len(distinct_colors) else plt.cm.tab10(np.linspace(0, 1, n_models))
+        for patch, color in zip(bp['boxes'], colors):
+            patch.set_facecolor(color)
+            patch.set_alpha(0.8)
+        
+        ax_box.set_title('EEG Mendeley Models - Statistical Distribution Analysis', fontweight='bold', fontsize=12)
+        ax_box.set_ylabel('Activity Type', fontsize=10)
+        ax_box.set_ylim(y_lim)  # Fixed scale for Mendeley
+        
+        # Set y-axis ticks and labels for Mendeley types
+        ax_box.set_yticks([1, 2, 3])
+        ax_box.set_yticklabels(['Social Media (1)', 'Cognitive Test (2)', 'Combined (3)'], fontsize=9)
+        
+        ax_box.tick_params(axis='x', labelsize=9)
+        ax_box.grid(True, alpha=0.3)
+        
+        # Add horizontal reference lines
+        ax_box.axhline(y=1, color='blue', linestyle='--', alpha=0.5, linewidth=1)
+        ax_box.axhline(y=2, color='green', linestyle='--', alpha=0.5, linewidth=1)
+        ax_box.axhline(y=3, color='purple', linestyle='--', alpha=0.5, linewidth=1)
+        
+        plt.suptitle(f'EEG-Based Mendeley Activity Models Analysis - {n_models} Models (Muse Headset Data)', 
+                    fontsize=18, fontweight='bold', y=0.95)
+    
+    # Better layout adjustment
+    plt.tight_layout(rect=[0, 0.02, 1, 0.93])
+    plt.show()
+
+def create_mendeley_classification_plot(all_clf_predictions, clf_model_names, timestep=None):
+    """Create separate, cleaner classification plots for Mendeley models"""
+    
+    if not all_clf_predictions:
+        return
+    
+    n_models = len(all_clf_predictions)
+    
+    # Prepare x-axis with descriptive labels
+    if timestep is not None and len(timestep) > 0:
+        x_axis = timestep
+        x_label = 'Time (seconds from EEG recording start)'
+    else:
+        x_axis = np.arange(len(all_clf_predictions[0]))
+        x_label = 'EEG Sample Index (chronological order)'
+    
+    # Use distinct colors for better differentiation
+    distinct_colors = ['#3498DB', '#2ECC71', '#9B59B6', '#E67E22', '#E74C3C', '#1ABC9C', '#F39C12', '#34495E']
+    colors = distinct_colors[:n_models] if n_models <= len(distinct_colors) else plt.cm.tab10(np.linspace(0, 1, n_models))
+    
+    # Create 3 separate plots for better clarity
+    
+    # Plot 1: Individual time series plots (one per model)
+    create_individual_mendeley_classification_plots(all_clf_predictions, clf_model_names, x_axis, x_label, colors)
+    
+    # Plot 2: Comparison plots (boxplot and frequency)
+    create_mendeley_classification_comparison_plots(all_clf_predictions, clf_model_names, colors)
+    
+    # Plot 3: Class distribution analysis
+    create_mendeley_classification_distribution_plots(all_clf_predictions, clf_model_names, colors)
+
+def create_individual_mendeley_classification_plots(all_clf_predictions, clf_model_names, x_axis, x_label, colors):
+    """Create individual time series plots for each Mendeley classification model"""
+    
+    n_models = len(all_clf_predictions)
+    
+    # Determine grid layout
+    if n_models <= 2:
+        rows, cols = 1, n_models
+        fig_size = (12 * n_models, 6)
+    elif n_models <= 4:
+        rows, cols = 2, 2
+        fig_size = (16, 10)
+    else:
+        rows = (n_models + 2) // 3
+        cols = 3
+        fig_size = (18, 5 * rows)
+    
+    fig, axes = plt.subplots(rows, cols, figsize=fig_size)
+    if n_models == 1:
+        axes = [axes]
+    elif rows == 1:
+        axes = axes if hasattr(axes, '__iter__') else [axes]
+    else:
+        axes = axes.flatten()
+    
+    for i, (predictions, model_name) in enumerate(zip(all_clf_predictions, clf_model_names)):
+        ax = axes[i]
+        
+        # Downsample if needed for cleaner visualization
+        if len(x_axis) > 800:
+            step = len(x_axis) // 400
+            x_sampled = x_axis[::step]
+            pred_sampled = predictions[::step]
+        else:
+            x_sampled = x_axis
+            pred_sampled = predictions
+        
+        # Create clean step plot for better class visibility
+        ax.step(x_sampled, pred_sampled, where='mid', color=colors[i], 
+               linewidth=2.5, alpha=0.9, label=f'Model {i+1}')
+        
+        # Fill between steps for better visibility
+        ax.fill_between(x_sampled, pred_sampled, alpha=0.3, color=colors[i], step='mid')
+        
+        # Create descriptive model names for Mendeley
+        short_name = os.path.basename(model_name).replace(".pkl", "")
+        model_type = "Social Media Analysis"
+        class_description = "Activity Types"
+            
+        if len(short_name) > 20:
+            display_name = short_name[:17] + "..."
+        else:
+            display_name = short_name.replace("_", " ")
+        
+        ax.set_title(f'{model_type} Classification Model {i+1}\n{display_name}', 
+                    fontweight='bold', fontsize=12, pad=15)
+        ax.set_xlabel(x_label, fontsize=10)
+        ax.set_ylabel('Activity Type', fontsize=10)
+        
+        # Set fixed y-axis for Mendeley types
+        ax.set_ylim(0.9, 3.1)
+        ax.set_yticks([1, 2, 3])
+        ax.set_yticklabels(['Social Media (1)', 'Cognitive Test (2)', 'Combined (3)'], fontsize=9)
+        
+        ax.grid(True, alpha=0.3, linestyle='--')
+        ax.set_facecolor('#fafafa')
+        
+        # Add horizontal reference lines for Mendeley types
+        ax.axhline(y=1, color='blue', linestyle='--', alpha=0.5, linewidth=1)
+        ax.axhline(y=2, color='green', linestyle='--', alpha=0.5, linewidth=1)
+        ax.axhline(y=3, color='purple', linestyle='--', alpha=0.5, linewidth=1)
+        
+        # Add Mendeley type info
+        unique_classes = np.unique(predictions)
+        class_text = f'Activity Types: {", ".join(map(str, sorted(unique_classes)))} (1=Social Media, 2=Cognitive Test, 3=Combined)'
+            
+        ax.text(0.02, 0.98, class_text, transform=ax.transAxes, 
+               verticalalignment='top', fontsize=9,
+               bbox=dict(boxstyle="round,pad=0.3", facecolor="lightblue", alpha=0.7))
+    
+    # Hide unused subplots
+    for i in range(n_models, len(axes)):
+        axes[i].set_visible(False)
+    
+    plt.suptitle(f'Individual EEG Mendeley Activity Classification Model Time Series - {n_models} Models (Muse Headset AF7,TP9,TP10,AF8)', 
+                fontsize=16, fontweight='bold', y=0.95)
+    plt.tight_layout(rect=[0, 0.02, 1, 0.93])
+    plt.show()
+
+def create_mendeley_classification_comparison_plots(all_clf_predictions, clf_model_names, colors):
+    """Create comparison plots for Mendeley classification models"""
+    
+    n_models = len(all_clf_predictions)
+    
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+    
+    # Left: Enhanced boxplot
+    box_data = all_clf_predictions
+    box_labels = [f'Model {i+1}' for i in range(n_models)]
+    
+    bp = ax1.boxplot(box_data, labels=box_labels, patch_artist=True, 
+                    showmeans=True, meanline=True, widths=0.6)
+    
+    # Apply distinct colors to boxplots
+    for patch, color in zip(bp['boxes'], colors):
+        patch.set_facecolor(color)
+        patch.set_alpha(0.8)
+        patch.set_edgecolor('black')
+        patch.set_linewidth(1.5)
+    
+    # Style other boxplot elements
+    for median in bp['medians']:
+        median.set_color('black')
+        median.set_linewidth(2)
+    
+    ax1.set_title('EEG Mendeley Activity Classification Models - Statistical Distribution Analysis', 
+                 fontweight='bold', fontsize=14)
+    ax1.set_ylabel('Activity Type', fontsize=11)
+    
+    # Set fixed y-axis for Mendeley types
+    ax1.set_ylim(0.9, 3.1)
+    ax1.set_yticks([1, 2, 3])
+    ax1.set_yticklabels(['Social Media (1)', 'Cognitive Test (2)', 'Combined (3)'], fontsize=9)
+    
+    ax1.tick_params(axis='x', labelsize=10)
+    ax1.grid(True, alpha=0.4, linestyle='--')
+    ax1.set_facecolor('#fafafa')
+    
+    # Add horizontal reference lines
+    ax1.axhline(y=1, color='blue', linestyle='--', alpha=0.5, linewidth=1)
+    ax1.axhline(y=2, color='green', linestyle='--', alpha=0.5, linewidth=1)
+    ax1.axhline(y=3, color='purple', linestyle='--', alpha=0.5, linewidth=1)
+    
+    # Right: Enhanced class frequency comparison
+    # Always show all Mendeley types (1, 2, 3) even if frequency is 0
+    all_classes = [1, 2, 3]  # Fixed Mendeley types
+    
+    x_pos = np.arange(len(all_classes))
+    width = 0.8 / n_models
+    
+    # Find max frequency for label positioning
+    max_freq = 0
+    for predictions in all_clf_predictions:
+        for class_val in all_classes:
+            freq = np.sum(predictions == class_val)
+            max_freq = max(max_freq, freq)
+    
+    for i, (predictions, model_name) in enumerate(zip(all_clf_predictions, clf_model_names)):
+        frequencies = [np.sum(predictions == class_val) for class_val in all_classes]
+        offset = (i - n_models/2 + 0.5) * width
+        
+        model_label = f'Mendeley Model {i+1}'
+            
+        bars = ax2.bar(x_pos + offset, frequencies, width, 
+                      label=model_label, color=colors[i], alpha=0.8,
+                      edgecolor='black', linewidth=1)
+        
+        # Add frequency labels on bars (show all, including 0)
+        for bar, freq in zip(bars, frequencies):
+            ax2.text(bar.get_x() + bar.get_width()/2., bar.get_height() + max_freq*0.01,
+                    f'{freq}', ha='center', va='bottom', fontsize=9, fontweight='bold')
+    
+    ax2.set_xlabel('Activity Type Categories', fontsize=11)
+    ax2.set_ylabel('Frequency Count (Number of Predictions)', fontsize=11)
+    ax2.set_title('EEG Mendeley Activity Classification Models - Class Frequency Distribution', 
+                 fontweight='bold', fontsize=14)
+    ax2.set_xticks(x_pos)
+    
+    # Create Mendeley type labels (always show all 3)
+    class_labels = ["Social Media (1)", "Cognitive Test (2)", "Combined (3)"]
+    ax2.set_xticklabels(class_labels, fontsize=10)
+    ax2.legend(fontsize=10, loc='upper right', framealpha=0.9)
+    ax2.grid(True, alpha=0.4, linestyle='--')
+    ax2.set_facecolor('#fafafa')
+    
+    plt.suptitle('EEG-Based Mendeley Activity Classification Models - Statistical Comparison (Muse Headset Data)', 
+                fontsize=16, fontweight='bold', y=0.95)
+    plt.tight_layout(rect=[0, 0.02, 1, 0.93])
+    plt.show()
+
+def create_mendeley_classification_distribution_plots(all_clf_predictions, clf_model_names, colors):
+    """Create distribution analysis plots for Mendeley classification models"""
+    
+    n_models = len(all_clf_predictions)
+    
+    # Get all unique classes across models
+    all_classes = set()
+    for predictions in all_clf_predictions:
+        all_classes.update(predictions)
+    all_classes = sorted(list(all_classes))
+    
+    # Create pie charts for each model
+    if n_models <= 3:
+        fig, axes = plt.subplots(1, n_models, figsize=(6 * n_models, 6))
+    else:
+        rows = (n_models + 2) // 3
+        fig, axes = plt.subplots(rows, 3, figsize=(18, 6 * rows))
+        axes = axes.flatten()
+    
+    if n_models == 1:
+        axes = [axes]
+    
+    for i, (predictions, model_name) in enumerate(zip(all_clf_predictions, clf_model_names)):
+        ax = axes[i]
+        
+        # Calculate class frequencies
+        class_counts = {}
+        for class_val in all_classes:
+            count = np.sum(predictions == class_val)
+            if count > 0:
+                class_counts[class_val] = count
+        
+        if class_counts:
+            # Create Mendeley type labels
+            labels = []
+            for c in class_counts.keys():
+                if c == 1:
+                    labels.append("Social Media (1)")
+                elif c == 2:
+                    labels.append("Cognitive Test (2)")
+                elif c == 3:
+                    labels.append("Combined (3)")
+                else:
+                    labels.append(f"Type {c}")
+            
+            sizes = list(class_counts.values())
+            
+            # Use distinct colors - blue for social media, green for cognitive, purple for combined
+            pie_colors = []
+            for c in class_counts.keys():
+                if c == 1:
+                    pie_colors.append('#3498DB')  # Blue for social media
+                elif c == 2:
+                    pie_colors.append('#2ECC71')  # Green for cognitive test
+                elif c == 3:
+                    pie_colors.append('#9B59B6')  # Purple for combined
+                else:
+                    pie_colors.append(colors[i % len(colors)])
+            
+            wedges, texts, autotexts = ax.pie(sizes, labels=labels, colors=pie_colors, autopct='%1.1f%%', 
+                                             startangle=90, textprops={'fontsize': 10})
+            
+            # Make percentage text bold
+            for autotext in autotexts:
+                autotext.set_color('white')
+                autotext.set_fontweight('bold')
+                autotext.set_fontsize(9)
+        
+        # Create descriptive model titles
+        short_name = os.path.basename(model_name).replace(".pkl", "")
+        model_type = "Social Media Analysis"
+            
+        if len(short_name) > 15:
+            display_name = short_name[:12] + "..."
+        else:
+            display_name = short_name.replace("_", " ")
+        
+        ax.set_title(f'{model_type} Model {i+1}\n{display_name}\nActivity Distribution (%)', 
+                    fontweight='bold', fontsize=11)
+    
+    # Hide unused subplots
+    for i in range(n_models, len(axes)):
+        axes[i].set_visible(False)
+    
+    plt.suptitle('EEG Mendeley Activity Classification Models - Type Distribution Analysis (Muse EEG AF7,TP9,TP10,AF8)', 
+                fontsize=16, fontweight='bold', y=0.95)
+    plt.tight_layout(rect=[0, 0.02, 1, 0.93])
     plt.show()
 
 def save_simple_visualizations(all_reg_predictions, all_clf_predictions, all_other_predictions,
